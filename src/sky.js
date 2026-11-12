@@ -63,7 +63,8 @@ export function updateSky(dt, scene, camera, snap) {
 }
 export function interiorFog(scene, level) {
   const P = G.player, torch = P.equip.lhand && P.equip.lhand.type === 'torch', ne = P.hasBuff('night');
-  const base = level.light || 14;
+  const base = level.fogFar || 14;
   scene.fog.color.setRGB(0, 0, 0); G.renderer.setClearColor(0x000000);
   scene.fog.near = 1.5; scene.fog.far = base + (level.dark ? (torch ? 11 : 0) + (ne ? 16 : 0) : 0);
 }
+export function setSkyVisible(v) { dome.visible = v; if (!v) { sun.visible = moon.visible = stars.visible = false; } }

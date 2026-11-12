@@ -187,7 +187,7 @@ export function monsterSheet(id) {
 }
 // Portrait canvas (head & shoulders) from a human look
 export function portrait(look, key, scale = 4) {
-  const q = new Pix(FW, FH); drawHuman(q, 0, look, 2, false, new RNG(strSeed(key) + 7)); q.outline();
+  const q = new Pix(FW, FH); drawHuman(q, 0, look, 0, false, new RNG(strSeed(key) + 7)); q.outline();
   const o = new Pix(24, 24);
   for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) { const s = (y * FW + x + 4) * 4; if (q.d[s + 3]) o.set(x, y, [q.d[s], q.d[s + 1], q.d[s + 2]], q.d[s + 3]); }
   return o.canvas(scale);
