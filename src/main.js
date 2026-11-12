@@ -119,7 +119,7 @@ function freshSave(seed) { return { seed, discovered: {}, known: {}, harvested: 
 G.fn.newGame = async function (cfg) {
   G.loading = true; UI.close(true); $('menu').classList.add('hidden');
   await setLoading('Shaping the realm of Aerhelgard...');
-  G.save = freshSave(cfg.seed >>> 0); G.time = 8 * 3600;
+  G.save = freshSave(cfg.seed >>> 0); G.time = 8 * 3600; G.homebound = new Set();
   buildWorld(G.save.seed);
   const P = G.player = new Player(cfg), W = G.world, L = W.start;
   startingKit(P);
@@ -389,7 +389,7 @@ async function loadGame(slot) {
   await setLoading('Restoring your journey...');
   const d = JSON.parse(raw);
   G.save = Object.assign(freshSave(d.save.seed), d.save, { explored: unb64(d.save.explored) }); G.time = d.time;
-  buildWorld(G.save.seed);
+  buildWorld(G.save.seed); Q.homebound();
   const P = G.player = Player.fromJSON(d.player);
   if (d.space) {
     const L = G.world.locs[d.space.loc], lay = getLayout(G.world, L), pos = P.pos.clone(), yaw = P.yaw;

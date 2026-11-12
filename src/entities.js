@@ -219,7 +219,7 @@ function updateProjs(dt) {
       p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; p.life -= h;
       const gy = ph.groundAt(p.x, p.z);
       if (p.life <= 0 || p.y < gy || (!ph.outdoor && (p.y > ph.wallH || ph.solidAt(p.x, p.z))) || (ph.outdoor && p.y < gy + 12 && ph.blocked(p.x, p.z, 0.05))) { projHit(p, null); break; }
-      if (p.owner === P) { for (const e of G.ents) if (e.hostile && !e.dead && Math.hypot(e.x - p.x, e.z - p.z) < e.rad + 0.3 && p.y > e.y + e.fly - 0.2 && p.y < e.y + e.fly + e.h + 0.2) { projHit(p, e); break; } }
+      if (p.owner === P) { for (const e of G.ents) if (e.hostile && !e.dead && Math.hypot(e.x - p.x, e.z - p.z) < e.rad + 0.35 && p.y > e.y + e.fly - 0.3 && p.y < e.y + e.fly + e.h * 1.15 + 0.45) { projHit(p, e); break; } }
       else if (Math.hypot(P.pos.x - p.x, P.pos.z - p.z) < 0.5 && p.y > P.pos.y && p.y < P.pos.y + 1.9) projHit(p, P);
     }
     if (!p.dead) p.mesh.position.set(p.x, p.y, p.z);
@@ -233,8 +233,8 @@ export function aimEnemy(range) {
     if (!e.hostile || e.dead) continue;
     const dx = e.x - cam.position.x, dy = e.y + e.fly + e.h * 0.5 - cam.position.y, dz = e.z - cam.position.z, d = Math.hypot(dx, dy, dz);
     if (d > range) continue;
-    const dot = (dx * v.x + dy * v.y + dz * v.z) / d, need = Math.cos(Math.atan2(e.rad + e.h * 0.4, d) + 0.03);
-    if (dot > need && dot > bd - 1 && (!best || d < best.d)) { if (G.phys.outdoor || G.phys.los(cam.position.x, cam.position.z, e.x, e.z)) best = { e, d }; }
+    const dot = (dx * v.x + dy * v.y + dz * v.z) / d, need = Math.cos(Math.atan2(e.rad + e.h * 0.5, d) + 0.06);
+    if (dot > need && (!best || d < best.d)) { if (G.phys.outdoor || G.phys.los(cam.position.x, cam.position.z, e.x, e.z)) best = { e, d }; }
   }
   return best ? best.e : null;
 }

@@ -3,6 +3,7 @@ import { RNG, hash2 } from './rng.js';
 import { BUILDINGS, B_DESERT, B_SWAMP, B_FOREST, DUNGEONS } from './data.js';
 import { personName, shopName } from './names.js';
 import { CHUNK, ckey, chunkOf } from './world.js';
+import { G } from './state.js';
 
 export const CELL = 12;
 const cache = new Map();
@@ -260,12 +261,13 @@ export function guardCitizen(L, n) {
 export function whereabouts(c, hour) {
   const r = c.role;
   if (r === 'guard' && c.b < 0) return 'out';
+  if (G.homebound && G.homebound.has(c.id) && r !== 'farmhand') return 'home';
   if (BUILDINGS_KEEPERS.has(r) || r === 'king' || r === 'queen' || r === 'steward' || r === 'guard' || r === 'server' || r === 'cook' || r === 'acolyte') return 'home';
   const o = (c.seed % 100) / 100;
   if (hour < 6 + o || hour >= 21 + o) return 'home';
   if (hour >= 18 + o && c.seed % 3 === 0) return 'inn';
   if (r === 'adventurer' || r === 'noble' || r === 'servant' || r === 'apprentice') return (c.seed >> 3) % 4 === 0 && hour > 11 && hour < 15 ? 'out' : 'home';
-  return hour > 12 + o && hour < 13.5 + o ? 'home' : 'out';
+  return c.seed % 3 === 1 && hour > 12 + o && hour < 13.5 + o ? 'home' : 'out';
 }
 const BUILDINGS_KEEPERS = new Set(Object.values(BUILDINGS).map((b) => b.keeper).filter(Boolean));
 export const isDungeonType = (t) => !!DUNGEONS[t];

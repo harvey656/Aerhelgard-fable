@@ -181,7 +181,7 @@ export function genBuilding(world, L, b) {
   const W = innerW + 2, bandsH = P.bands.reduce((a) => a + bd + 1 + (P.corridor ? 2 : 0), 0), H = P.mainD + bandsH + 2;
   const tall = b.type === 'church' ? 7 : b.type === 'castle' ? 5.5 : b.type === 'guild' || b.type === 'inn' ? 3.6 : 3;
   const lv = new Level(W, H, 2.5, tall);
-  lv.kind = 'building'; lv.loc = L; lv.b = b; lv.name = b.name; lv.fogFar = 30;
+  lv.kind = 'building'; lv.loc = L; lv.b = b; lv.name = b.name; lv.fogFar = b.type === 'church' || b.type === 'castle' ? 70 : 34;
   const mz1 = H - 2, mz0 = mz1 - P.mainD + 1, mx0 = 1 + (P.left ? sw + 1 : 0) + Math.floor((innerW - (P.left ? sw + 1 : 0) - (P.right ? sw + 1 : 0) - P.mainW) / 2), mx1 = mx0 + P.mainW - 1;
   const stoneFloor = b.type === 'church' || b.type === 'castle' || b.type === 'smithy' ? 1 : 0;
   const main = carve(lv, P.left || P.right || !P.bands.length ? mx0 : 1, mz0, P.left || P.right || !P.bands.length ? mx1 : W - 2, mz1, stoneFloor); main.use = 'main';
@@ -311,7 +311,7 @@ export function genDungeon(world, L, floor) {
   lv.name = L.name + (floors > 1 ? ' - ' + (L.type === 'tower' ? 'Floor ' : 'Depth ') + (floor + 1) : '');
   const up = L.type === 'tower';
   // exits and stairs
-  const e = lv.entrance; lv.spawn = { x: lv.cx(e[0]), z: lv.cx(e[1]), yaw: 0 };
+  const e = lv.entrance; lv.spawn = { x: lv.cx(e[0]), z: lv.cx(e[1]) + 0.95, yaw: Math.PI };
   lv.taken.add(e[1] * lv.W + e[0]);
   if (floor === 0) lv.addProp(up ? 'stairsDown' : 'stairsUp', lv.cx(e[0]), lv.cx(e[1]) - 0.9, { sc: 0.9, inter: { kind: 'exit', label: 'Leave ' + L.name } });
   else lv.addProp(up ? 'stairsDown' : 'stairsUp', lv.cx(e[0]), lv.cx(e[1]) - 0.9, { sc: 0.9, inter: { kind: 'stairs', dir: -1, label: up ? 'Descend' : 'Ascend' } });
@@ -428,7 +428,7 @@ function stockDungeon(lv, rng, L, D, last) {
   for (const r of lv.rooms) if (r.vault) { chest([r.x0 + 1, r.z0 + 1], 1, 0); const p = lv.randomFloor(rng, r); if (p) chest(p, 1, 0); }
   if (type === 'cave' || type === 'den') for (let i = 0; i < rng.int(1, 4); i++) { const p = far(5); if (p) { lv.taken.add(p[1] * W + p[0]); lv.addProp('ore', lv.cx(p[0]), lv.cx(p[1]), { solid: 0.7, inter: { kind: 'ore', id: 'dore' + L.id + '_' + lv.floor + '_' + i, tier: clamp(L.tier - 1 + rng.int(-1, 1), 0, 4) } }); } }
   // monsters
-  const count = Math.round(area / (type === 'tower' ? 16 : 30) + L.tier * 0.8 + rng.range(0, 2));
+  const count = Math.min(20, Math.round(area / (type === 'tower' ? 18 : 42) + L.tier * 0.8 + rng.range(0, 2)));
   for (let i = 0; i < count; i++) { const p = far(6); if (!p || !table.length) continue; const id = rng.weighted(table); if (!killed.includes(i)) lv.mobs.push({ id, x: lv.cx(p[0]), z: lv.cx(p[1]), idx: i }); }
   const fb = lv.farthest;
   if (last) {

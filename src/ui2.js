@@ -31,7 +31,7 @@ UI.mainMenu = function () {
   G.mode = 'menu'; UI.close(true); $('hud').classList.add('hidden');
   const m = $('menu'); m.innerHTML = ''; m.classList.remove('hidden');
   const saves = G.fn.listSaves();
-  m.append(titleArt(), h('div', { class: 'mainmenu' }, h('h1', {}, 'Aerhelgard'), h('p', {}, 'A realm of forty-eight leagues, born anew from every seed'),
+  m.append(titleArt(), h('div', { class: 'mainmenu' }, h('h1', {}, 'Aerhelgard'), h('p', {}, 'A realm forty-eight kilometres across, born anew from every seed'),
     h('button', { onclick: () => UI.create() }, 'New Game'),
     h('button', { disabled: saves.length ? null : '', onclick: () => UI.saves('load', true) }, 'Load Game'),
     h('button', { onclick: () => UI.help(true) }, 'Controls'),

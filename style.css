@@ -70,7 +70,8 @@ h1, h2, h3 { font-family: 'Pirata One', serif; font-weight: normal; margin: 0; l
 .face { width: 132px; height: 132px; background: #14100c; border: 2px solid; border-color: #000 #6a5a40 #6a5a40 #000; flex: none; } .face canvas { width: 100%; height: 100%; image-rendering: pixelated; }
 #tooltip { position: fixed; z-index: 50; padding: 6px 10px; max-width: 360px; pointer-events: none; font-size: 19px; } #tooltip h4 { margin: 0 0 3px; font-weight: normal; color: var(--gold-l); font-size: 22px; } #tooltip .cmp { color: #a8d8ff; margin-top: 4px; border-top: 1px solid #6a5a40; padding-top: 3px; } #tooltip .hint { color: #a89878; margin-top: 4px; }
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0c0a10; z-index: 80; } #loading .panel { padding: 22px 46px; font-size: 28px; }
-.title-art { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.title-art { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; z-index: 0; }
+#menu .window, #menu .mainmenu { position: relative; z-index: 1; }
 .mainmenu { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .mainmenu h1 { font-size: 110px; color: var(--gold-l); text-shadow: 4px 4px 0 #3a1408, 0 0 30px #000; margin-bottom: 4px; } .mainmenu p { margin: 0 0 26px; color: #c8b890; font-size: 24px; text-shadow: 1px 1px 0 #000; }
 .mainmenu button { width: 280px; font-size: 26px; padding: 6px; }

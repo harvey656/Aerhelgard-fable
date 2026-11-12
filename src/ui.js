@@ -270,7 +270,7 @@ UI.openQuestBoard = function (npc, L, royal) {
   const body = h('div', {}), list = h('div', { class: 'list parch', style: 'width:640px;height:52vh;white-space:normal' });
   const draw = () => {
     list.innerHTML = '';
-    const offers = Q.offersFor(L, npc.c, royal ? 2 : 4, royal ? ['bounty', 'fetch'] : ['delivery', 'fetch', 'bounty', 'slay', 'gather', 'supply']);
+    const offers = Q.offersFor(L, npc.c, royal ? 3 : 5, royal ? ['bounty', 'fetch'] : ['delivery', 'fetch', 'bounty', 'slay', 'gather', 'supply']);
     if (royal) for (const o of offers) { o.gold = Math.round(o.gold * 1.8); o.title = 'Royal ' + o.title; }
     if (!offers.length) list.append(h('div', { style: 'padding:10px' }, 'There is no more work for now. New contracts are posted every few days.'));
     for (const o of offers) list.append(h('div', { style: 'padding:6px 8px;border-bottom:1px solid #8a7048' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', { style: 'font-weight:normal;font-size:23px;color:#6a1a10' }, o.title), h('span', {}, o.gold + ' gold')), h('div', { style: 'white-space:normal;line-height:1.05;margin:3px 0 5px' }, o.desc), h('button', { onclick: () => { Q.accept(o); draw(); } }, 'Accept')));
@@ -325,7 +325,7 @@ UI.map = function () {
       const r = L.civ ? { farm: 3, village: 4, town: 5, city: 7, castle: 8 }[L.type] : 4;
       if (mapZoom > 0.25 && L.civ && disc) { // town plan
         const lay = getLayout(W, L);
-        for (const b of lay.buildings) { g.fillStyle = b.type === 'house' || b.type === 'barn' || b.type === 'farmhouse' ? '#6a5038' : b.type === 'castle' ? '#888' : '#b03020'; g.fillRect(sx(b.x - b.w / 2), sy(b.z - b.d / 2), b.w * mapZoom, b.d * mapZoom); if (mapZoom > 1 && BUILDINGS[b.type].sign) { g.fillStyle = '#000'; g.fillText(b.name, sx(b.x), sy(b.z - b.d / 2) - 3); } }
+        for (const b of lay.buildings) { g.fillStyle = b.type === 'house' || b.type === 'barn' || b.type === 'farmhouse' ? '#6a5038' : b.type === 'castle' ? '#888' : '#b03020'; g.fillRect(sx(b.x - b.w / 2), sy(b.z - b.d / 2), b.w * mapZoom, b.d * mapZoom); if (mapZoom > 1.7 && (BUILDINGS[b.type].sign || b.type === 'castle')) { g.fillStyle = '#000'; g.font = '16px VT323'; g.fillText(b.name, sx(b.x), sy(b.z - b.d / 2) - 3); } }
         g.fillStyle = '#555'; for (const w of lay.walls) g.fillRect(sx(w.x0), sy(w.z0), (w.x1 - w.x0) * mapZoom, (w.z1 - w.z0) * mapZoom);
       } else {
         g.fillStyle = disc ? PIN[L.type] : 'rgba(0,0,0,0)'; g.strokeStyle = '#1a1008'; g.lineWidth = 2;
