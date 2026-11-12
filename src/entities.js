@@ -18,6 +18,8 @@ class Ent {
     this.sheet = sheet; this.h = h; this.x = x; this.z = z; this.y = 0; this.rad = 0.4; this.fx = 0; this.fz = 1; this.anim = 0; this.frame = -1; this.flashT = 0; this.fly = 0;
     this.mat = new THREE.MeshBasicMaterial({ map: sheet.tex, alphaTest: 0.5, side: THREE.DoubleSide });
     this.mesh = new THREE.Mesh(quadGeo(), this.mat);
+    if (!sheet.depthMat) sheet.depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: sheet.tex, alphaTest: 0.5, side: THREE.DoubleSide });
+    this.mesh.castShadow = true; this.mesh.customDepthMaterial = sheet.depthMat;
     const vis = sheet.frames === 5 ? 1 : 1.2; // beast cells have padding
     this.mesh.scale.set(h * vis * sheet.aspect, h * vis, 1);
     this.setFrame(0); G.entGroup.add(this.mesh);

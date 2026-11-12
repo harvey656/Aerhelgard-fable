@@ -10,7 +10,7 @@ import { addBuilding, addWall, addTower } from './exterior.js';
 import { G, dayOf } from './state.js';
 
 const N = 16, S = CHUNK / N, V = N + 1;
-export const VIEW_R = 7;
+export const viewR = () => (G.opts && G.opts.view) || 7;
 const lin = (v) => Math.pow(v, 2.2);
 const FLORA_SETS = [
   { dens: 0.8, sp: [['oak', 4, 0.45], ['oak2', 3, 0.45], ['pine', 3, 0.4], ['birch', 2, 0.3], ['bush', 2.5, 0], ['rock2', 0.5, 0.5], ['deadtree', 0.3, 0.3], ['grass', 2, 0]] },
@@ -34,7 +34,7 @@ export class Terrain {
   dispose() { for (const c of this.chunks.values()) disposeGroup(c.group); this.chunks.clear(); this.scene.remove(this.group); }
 
   update(px, pz, budgetMs = 5, night = false) {
-    const cx = Math.floor(px / CHUNK), cz = Math.floor(pz / CHUNK);
+    const cx = Math.floor(px / CHUNK), cz = Math.floor(pz / CHUNK), VIEW_R = viewR();
     if (cx !== this.pcx || cz !== this.pcz) {
       this.pcx = cx; this.pcz = cz; this.queue.length = 0;
       for (let j = -VIEW_R; j <= VIEW_R; j++) for (let i = -VIEW_R; i <= VIEW_R; i++) {
@@ -48,6 +48,8 @@ export class Terrain {
     while (this.queue.length && performance.now() - t0 < budgetMs) { const q = this.queue.pop(); this.build(q[1], q[2]); }
     this.water.position.x = Math.round(px / 32) * 32; this.water.position.z = Math.round(pz / 32) * 32;
     M.water.map.offset.x = performance.now() * 0.00002; M.water.map.repeat.set(175, 175);
+    const sh = G.opts && G.opts.shadows ? (G.opts.shadows > 1 ? 3 : 2) : -1;
+    for (const c of this.chunks.values()) c.shadowMesh.visible = Math.abs(c.cx - cx) <= sh && Math.abs(c.cz - cz) <= sh;
     if (night !== this.night) { this.night = night; for (const c of this.chunks.values()) if (c.nightMesh) c.nightMesh.visible = night; }
     return this.queue.length;
   }
@@ -73,12 +75,12 @@ export class Terrain {
       if (i > 0 && j > 0 && i <= V && j <= V) { const k = (j - 1) * V + i - 1; H[k] = h; ba[k] = W.ba; bb[k] = W.bb; bt[k] = W.bt; lw[k] = W.locW; locs[k] = W.inLoc; if (W.inLoc) locSet.add(W.inLoc); }
     }
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
-    const nrmY = new Float32Array(V * V);
+    const nrmY = new Float32Array(V * V), nrm = new Float32Array(V * V * 3);
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
       const k = j * V + i, x = ox + i * S, z = oz + j * S, h = H[k];
       pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z; uv[k * 2] = x / 4; uv[k * 2 + 1] = z / 4;
       const dx = hs[(j + 1) * E + i + 2] - hs[(j + 1) * E + i], dz = hs[(j + 2) * E + i + 1] - hs[j * E + i + 1];
-      let nx = -dx, ny = 2 * S, nz = -dz; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l; nrmY[k] = ny;
+      let nx = -dx, ny = 2 * S, nz = -dz; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l; nrmY[k] = ny; nrm[k * 3] = nx; nrm[k * 3 + 1] = ny; nrm[k * 3 + 2] = nz;
       const A = BCOL[ba[k]], Bc = BCOL[bb[k]], t = bt[k];
       const n1 = W.N.n2(x / 70, z / 70) * 0.5 + 0.5, n2 = (hash2(x, z, 3) & 255) / 255;
       let r = lerp(lerp(Bc[0][0], Bc[1][0], n1), lerp(A[0][0], A[1][0], n1), t), g = lerp(lerp(Bc[0][1], Bc[1][1], n1), lerp(A[0][1], A[1][1], n1), t), b = lerp(lerp(Bc[0][2], Bc[1][2], n1), lerp(A[0][2], A[1][2], n1), t);
@@ -107,11 +109,12 @@ export class Terrain {
     const idx = new Uint16Array(N * N * 6); let q = 0;
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * V + i, b = a + 1, c = a + V, d = c + 1; idx[q++] = a; idx[q++] = c; idx[q++] = b; idx[q++] = b; idx[q++] = c; idx[q++] = d; }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
     const group = new THREE.Group(); group.matrixAutoUpdate = false;
     const mesh = new THREE.Mesh(geo, M.terrain); mesh.matrixAutoUpdate = false; group.add(mesh);
-    const c = { cx, cz, H, group, boxes: [], circles: [], inter: [], flora: [], forage: [], floraMesh: null, propList: [], ba, bt, bb, lw, nrmY };
+    const shadowMesh = new THREE.Mesh(geo, M.shadow); shadowMesh.matrixAutoUpdate = false; shadowMesh.receiveShadow = true; shadowMesh.visible = false; shadowMesh.renderOrder = 1; group.add(shadowMesh);
+    const c = { cx, cz, H, group, shadowMesh, boxes: [], circles: [], inter: [], flora: [], forage: [], floraMesh: null, propList: [], ba, bt, bb, lw, nrmY };
     this.chunks.set(ckey(cx, cz), c);
     this.genFlora(c, ox, oz);
     this.genStructures(c, locSet, ox, oz);

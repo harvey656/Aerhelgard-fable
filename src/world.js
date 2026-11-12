@@ -4,8 +4,8 @@ import { BIOMES, B_MOUNT, B_SWAMP, B_DESERT, B_FOREST, B_PLAINS, DUNGEONS } from
 import { locName } from './names.js';
 
 export const WORLD = 48000, HALF = 24000, BCELL = 6000, BN = 8;
-export const MIN_GAP = 2000; // minimum distance between the edges of two locations
-const LGRID = 1500, RGRID = 400, POI_CELL = 512;
+export const MIN_GAP = 650; // minimum distance between the edges of two locations
+const LGRID = 1500, RGRID = 400, POI_CELL = 300;
 
 export function locRadius(type, count) {
   if (type === 'farm') return 60;
@@ -142,12 +142,12 @@ export class World {
         this.locs.push(L); placed++;
       }
     };
-    tryPlace('castle', 3, 3000, true);
-    tryPlace('city', 8, 4000, true);
-    tryPlace('town', 26, 6000, true);
-    tryPlace('village', 46, 8000, true);
-    tryPlace('farm', 70, 9000, true);
-    tryPlace('dungeon', 150, 14000, false);
+    tryPlace('castle', 4, 3000, true);
+    tryPlace('city', 14, 5000, true);
+    tryPlace('town', 50, 9000, true);
+    tryPlace('village', 130, 16000, true);
+    tryPlace('farm', 260, 26000, true);
+    tryPlace('dungeon', 420, 30000, false);
     // unique names
     const seen = new Set();
     for (const L of this.locs) {
@@ -181,7 +181,7 @@ export class World {
     const civ = this.locs.filter((l) => l.civ);
     const done = new Set();
     for (const A of civ) {
-      const near = this.nearest(A.x, A.z, (l) => l.civ && l !== A, A.type === 'farm' ? 1 : 3);
+      const near = this.nearest(A.x, A.z, (l) => l.civ && l !== A, A.type === 'farm' ? 1 : A.type === 'village' ? 2 : 3);
       for (const B of near) {
         const k = Math.min(A.id, B.id) + ':' + Math.max(A.id, B.id);
         const d = Math.hypot(A.x - B.x, A.z - B.z);
@@ -223,11 +223,11 @@ export class World {
   // Small wilderness points of interest, one possible per 512m cell.
   poiInCell(cx, cz) {
     const h = hash2(cx, cz, this.seed ^ 0x9017);
-    if ((h & 255) > 150) return null;
-    const x = cx * POI_CELL + 60 + ((h >>> 8) & 255) / 255 * (POI_CELL - 120);
-    const z = cz * POI_CELL + 60 + ((h >>> 16) & 255) / 255 * (POI_CELL - 120);
+    if ((h & 255) > 170) return null;
+    const x = cx * POI_CELL + 40 + ((h >>> 8) & 255) / 255 * (POI_CELL - 80);
+    const z = cz * POI_CELL + 40 + ((h >>> 16) & 255) / 255 * (POI_CELL - 80);
     if (Math.abs(x) > HALF - 300 || Math.abs(z) > HALF - 300) return null;
-    if (this.locAt(x, z, 220)) return null;
+    if (this.locAt(x, z, 120)) return null;
     const y = this.rawHeight(x, z), b = this.ba;
     if (y < 0.5) return null;
     if (Math.abs(this.rawHeight(x + 6, z) - y) > 4 || Math.abs(this.rawHeight(x, z + 6) - y) > 4) return null;

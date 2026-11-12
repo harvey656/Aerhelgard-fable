@@ -40,8 +40,8 @@ Items have weight, value, condition, material tier, quality and enchantments. Tw
 dual wielding, torches, stacking, quick slots, item comparison, dropping, containers.
 
 **World.** A 48 × 48 km continent divided into large biome regions (forest, desert, plains, mountains,
-swamp), each with its own palette, fog, lighting, flora, forage and monsters. About 300 locations are placed
-with at least 2000 m between their edges: farms (2–5 buildings), villages (5–15), towns (20–50), cities
+swamp), each with its own palette, fog, lighting, flora, forage and monsters. Nearly 900 locations are placed
+with at least 650 m between their edges (typically about a kilometre to the nearest neighbour): farms (2–5 buildings), villages (5–15), towns (20–50), cities
 (100–500) and walled castle-cities (500–1000 around a great castle, four gates), plus crypts, caves, monster
 dens, ruins and towers. Terrain streams in seamlessly around the player; roads link the settlements; wayshrines,
 standing stones, bandit camps, abandoned carts, ore outcrops and mushroom rings dot the wilds.
@@ -62,7 +62,13 @@ bosses, culling monsters, foraging, and supply contracts. Guild standing improve
 ingredient effects; smelting, forging, tempering and repair; mining; day/night cycle; resting and ambushes;
 a full-scale map with fog of war, auto-pins and town plans; fast travel to visited places; save slots.
 
+**Graphics options** (Esc → Options): pixel size, sun and moon shadows (off / on / high), flowing clouds,
+and view distance (near / normal / far / very far).
+
 ## Design notes
+
+- **Location spacing.** The original brief asked for 2000 m between locations; after play-testing that felt
+  empty, so the minimum gap is now 650 m (`MIN_GAP` in `src/world.js`) with roughly three times as many places.
 
 A few places where the brief was open to interpretation:
 

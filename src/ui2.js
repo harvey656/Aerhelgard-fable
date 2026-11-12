@@ -89,6 +89,10 @@ UI.options = function () {
   const o = G.opts, body = h('div', {});
   const draw = () => { body.innerHTML = ''; body.append(h('div', { class: 'col', style: 'width:420px' },
     h('div', { class: 'kv' }, 'Pixel size (retro look)', h('span', { class: 'pm' }, h('button', { onclick: () => { o.pixel = Math.max(1, o.pixel - 1); G.fn.resize(); draw(); } }, '-'), String(o.pixel), h('button', { onclick: () => { o.pixel = Math.min(6, o.pixel + 1); G.fn.resize(); draw(); } }, '+'))),
+    h('div', { class: 'kv' }, 'Shadows', h('button', { style: 'min-width:150px', onclick: () => { o.shadows = (o.shadows + 1) % 3; draw(); } }, ['Off', 'On', 'High (longer range)'][o.shadows])),
+    h('div', { class: 'kv' }, 'Flowing clouds', h('button', { style: 'min-width:150px', onclick: () => { o.clouds = !o.clouds; draw(); } }, o.clouds ? 'On' : 'Off')),
+    h('div', { class: 'kv' }, 'View distance', h('button', { style: 'min-width:150px', onclick: () => { const v = [5, 7, 10, 13]; o.view = v[(v.indexOf(o.view) + 1) % v.length]; G.fn.applyGfx(); draw(); } }, { 5: 'Near', 7: 'Normal', 10: 'Far', 13: 'Very far' }[o.view] || 'Normal')),
+    h('div', { class: 'note', style: 'white-space:normal' }, 'Shadows and long view distances cost the most performance.'),
     h('div', { class: 'kv' }, 'Mouse sensitivity', h('span', { class: 'pm' }, h('button', { onclick: () => { o.sens = Math.max(0.2, +(o.sens - 0.1).toFixed(1)); draw(); } }, '-'), o.sens.toFixed(1), h('button', { onclick: () => { o.sens = Math.min(3, +(o.sens + 0.1).toFixed(1)); draw(); } }, '+'))),
     h('div', { class: 'kv' }, 'Sound volume', h('span', { class: 'pm' }, h('button', { onclick: () => { o.vol = Math.max(0, +(o.vol - 0.1).toFixed(1)); draw(); } }, '-'), Math.round(o.vol * 100) + '%', h('button', { onclick: () => { o.vol = Math.min(1, +(o.vol + 0.1).toFixed(1)); G.fn.sfx('coin'); draw(); } }, '+'))),
     h('div', { class: 'kv' }, 'Invert mouse Y', h('button', { onclick: () => { o.invert = !o.invert; draw(); } }, o.invert ? 'Yes' : 'No')),

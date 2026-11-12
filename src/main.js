@@ -19,10 +19,10 @@ import './ui2.js';
 import { sfx, audio } from './audio.js';
 import { weaponCanvas } from './sprites.js';
 
-const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.save.', META_KEY = 'aerhelgard.meta';
+const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v2.save.', META_KEY = 'aerhelgard.v2.meta';
 let renderer, scene, camera, fx, fxg, locked = false, hadLock = false, tickT = 0, target = null, last = 0;
 const mouse = { l: false, r: false }, input = { fwd: 0, strafe: 0, turn: 0, sprint: false, jump: false, attack: false, block: false };
-G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
+G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false, shadows: 1, clouds: true, view: 7 }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
 G.bags = []; G.projs = [];
 
 // ---------- boot ----------
@@ -30,6 +30,7 @@ async function boot() {
   try { await Promise.all([document.fonts.load('20px VT323'), document.fonts.load('40px "Pirata One"')]); } catch { /* fonts optional */ }
   makeTextures(); makeAtlases(); makeMaterials();
   renderer = G.renderer = new THREE.WebGLRenderer({ canvas: $('view'), antialias: false, powerPreference: 'high-performance' });
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.BasicShadowMap;
   scene = G.scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x000000, 10, 300);
   camera = G.camera = new THREE.PerspectiveCamera(66, 1, 0.08, 3000); camera.rotation.order = 'YXZ';
   G.entGroup = new THREE.Group(); scene.add(G.entGroup);
@@ -50,6 +51,7 @@ function resize() {
   camera.aspect = innerWidth / vh; camera.updateProjectionMatrix();
 }
 G.fn.resize = resize;
+G.fn.applyGfx = () => { if (G.terrain) G.terrain.pcx = 1e9; };
 G.fn.saveOpts = () => { audio.vol = G.opts.vol; localStorage.setItem('aerhelgard.opts', JSON.stringify(G.opts)); };
 G.fn.msg = (t, c) => UI.msg(t, c); G.fn.banner = (t) => UI.banner(t); G.fn.flash = (c, d) => UI.flash(c, d); G.fn.sfx = sfx; G.fn.showEnemy = (e) => UI.showEnemy(e);
 G.fn.shoot = shoot; G.fn.aimEnemy = aimEnemy; G.fn.bolt = bolt;

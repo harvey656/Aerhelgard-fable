@@ -28,7 +28,19 @@ export function billboardMat(map) {
       }`,
     fog: true,
   });
-  m.uniforms.map.value = map;
+  m.uniforms.map.value = map; m.shadowSide = THREE.DoubleSide;
+  // depth-only twin so billboards cast shadows (they turn to face the sun)
+  m.depth = new THREE.ShaderMaterial({
+    uniforms: { map: { value: map } },
+    vertexShader: `attribute vec2 off; varying vec2 vUv;
+      void main(){ vUv = uv;
+        vec3 right = normalize(vec3(viewMatrix[0][0], 0.0, viewMatrix[2][0]));
+        vec4 wp = modelMatrix * vec4(position, 1.0); wp.xyz += right * off.x; wp.y += off.y;
+        gl_Position = projectionMatrix * viewMatrix * wp; }`,
+    fragmentShader: `#include <packing>
+      uniform sampler2D map; varying vec2 vUv;
+      void main(){ if (texture2D(map, vUv).a < 0.5) discard; gl_FragColor = packDepthToRGBA(gl_FragCoord.z); }`,
+  });
   billboards.push(m);
   return m;
 }
@@ -40,6 +52,7 @@ export function makeMaterials() {
   M.water = new THREE.MeshBasicMaterial({ map: T.water, transparent: true, opacity: 0.78, depthWrite: false });
   outdoor.push(M.terrain, M.plaster, M.stone, M.wood, M.sandstone, M.thatch, M.shingle, M.slate, M.flat, M.rock, M.door, M.dark, M.water);
   M.flora = billboardMat(T.flora); M.props = billboardMat(T.props);
+  M.shadow = new THREE.ShadowMaterial({ opacity: 0.35, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   M.wallMats = [M.plaster, M.stone, M.wood, M.sandstone];
   // interiors (never tinted by daylight)
   M.in = {};
@@ -99,7 +112,7 @@ export class Bucket {
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.setIndex(this.idx);
     g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, mat); m.matrixAutoUpdate = false; return m;
+    const m = new THREE.Mesh(g, mat); m.matrixAutoUpdate = false; m.castShadow = true; return m;
   }
 }
 function faceShade(a, b, d) {
@@ -127,7 +140,9 @@ export class BillBucket {
     g.setAttribute('shade', new THREE.Float32BufferAttribute(this.shade, 1));
     g.setIndex(this.idx);
     g.computeBoundingSphere(); g.boundingSphere.radius += 12;
-    const m = new THREE.Mesh(g, mat); m.matrixAutoUpdate = false; return m;
+    const m = new THREE.Mesh(g, mat); m.matrixAutoUpdate = false;
+    if (mat.depth) { m.castShadow = true; m.customDepthMaterial = mat.depth; }
+    return m;
   }
 }
 export function disposeGroup(group) {
