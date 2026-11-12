@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aerhelgard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="view"></canvas>
+<canvas id="fx"></canvas>
+<div id="flash"></div>
+<div id="hud" class="hidden">
+  <div id="msgs"></div>
+  <div id="banner"></div>
+  <div id="buffs"></div>
+  <div id="tracker"></div>
+  <div id="cross"></div>
+  <div id="prompt"></div>
+  <div id="enemy"><div id="enemyName"></div><div class="bar"><i id="enemyBar"></i></div></div>
+  <div id="bar" class="panel">
+    <div id="portrait"></div>
+    <div id="vitals">
+      <div id="pname"></div>
+      <div class="vrow"><span>HP</span><div class="bar hp"><i id="hpBar"></i><b id="hpTxt"></b></div></div>
+      <div class="vrow"><span>MP</span><div class="bar mp"><i id="mpBar"></i><b id="mpTxt"></b></div></div>
+      <div class="vrow"><span>ST</span><div class="bar st"><i id="stBar"></i><b id="stTxt"></b></div></div>
+    </div>
+    <div id="mid">
+      <canvas id="compass" width="360" height="26"></canvas>
+      <div id="where"></div>
+      <div id="quick"></div>
+    </div>
+    <div id="btns"></div>
+  </div>
+</div>
+<div id="win" class="hidden"></div>
+<div id="menu" class="hidden"></div>
+<div id="tooltip" class="panel hidden"></div>
+<div id="loading" class="hidden"><div class="panel"><div id="loadText">Loading...</div></div></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

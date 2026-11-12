@@ -1,0 +1,8 @@
+{
+  "name": "aerhelgard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Aerhelgard - a first-person procedurally generated open-world sim RPG",
+  "scripts": { "start": "node server.js" }
+}
