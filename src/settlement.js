@@ -1,6 +1,6 @@
 // Settlement & dungeon-entrance layouts, plus the citizens who live there. All deterministic per location.
 import { RNG, hash2 } from './rng.js';
-import { BUILDINGS, B_DESERT, B_SWAMP, B_FOREST, DUNGEONS } from './data.js';
+import { BUILDINGS, B_DESERT, B_SWAMP, B_FOREST, DUNGEONS, GUILDS, FAITHS } from './data.js';
 import { personName, shopName } from './names.js';
 import { CHUNK, ckey, chunkOf } from './world.js';
 import { G } from './state.js';
@@ -19,6 +19,12 @@ export function getLayout(world, L) {
   return lay;
 }
 export function clearLayouts() { cache.clear(); }
+export function clearLayout(id) { cache.delete(id); }
+// Which guild keeps the hall in this settlement, and which faith its churches follow
+const GIDS = Object.keys(GUILDS), FIDS = Object.keys(FAITHS);
+export function guildOf(L) { const o = G.save && G.save.guildOf && G.save.guildOf[L.id]; return o || GIDS[hash2(L.id, 31, L.seed) % GIDS.length]; }
+export function faithOf(L) { return FIDS[hash2(L.id, 47, L.seed) % FIDS.length]; }
+export function realmName(W, L) { const C = W.locs[L.realm]; return 'Kingdom of ' + C.name.replace(/^(Castle|Fort|Hold of) /, ''); }
 
 function mkBuilding(lay, type, x, z, w, d, h, nx, nz, extra) {
   const b = Object.assign({ i: lay.buildings.length, type, x, z, w, d, h, nx, nz, roof: 'gable', wall: 0, name: null }, extra);
@@ -144,12 +150,16 @@ function genCiv(world, L) {
     if (!castle) for (let k = 0; k < 3; k++) lay.props.push({ type: 'stall', x: L.x + (k - 1) * 6.5, z: L.z + (k % 2 ? 7 : -7), solid: 1.3 });
     lay.ext = ext;
   }
+  // a guild that has grown its influence here flies its banners on the square
+  if (G.save && G.save.guildOf && G.save.guildOf[L.id]) for (const [dx, dz] of [[-4, -3], [4, -3], [-4, 4], [4, 4]]) lay.props.push({ type: 'banner', x: L.x + dx, z: L.z + dz, solid: 0.2 });
   // names & owners
   for (const b of lay.buildings) {
     const def = BUILDINGS[b.type];
     const cs = citizensOf(L, b);
     b.pop = cs.length;
-    if (def.keeper) b.name = shopName(new RNG(hash2(L.id, b.i, 99)), b.type, cs[0].name);
+    if (b.type === 'guild') b.name = GUILDS[guildOf(L)].hall;
+    else if (b.type === 'church') b.name = FAITHS[faithOf(L)].temple;
+    else if (def.keeper) b.name = shopName(new RNG(hash2(L.id, b.i, 99)), b.type, cs[0].name);
     else if (!b.name) b.name = b.type === 'barn' ? 'Barn' : cs[0].name.split(' ')[1] + ' ' + (b.type === 'farmhouse' ? 'Farmhouse' : 'Residence');
   }
   return lay;

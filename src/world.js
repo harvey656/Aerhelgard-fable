@@ -162,6 +162,9 @@ export class World {
           const k = lkey(cx, cz); if (!this.lgrid.has(k)) this.lgrid.set(k, []); this.lgrid.get(k).push(L);
         }
     }
+    // every place owes fealty to the nearest castle
+    this.castles = this.locs.filter((l) => l.type === 'castle');
+    for (const L of this.locs) { let bd = 1e18; for (const C of this.castles) { const d = (C.x - L.x) ** 2 + (C.z - L.z) ** 2; if (d < bd) { bd = d; L.realm = C.id; } } }
     // starting town + make its nearest dungeons gentle
     const towns = this.locs.filter((l) => l.type === 'town');
     this.start = towns.length ? towns[rng.int(0, towns.length - 1)] : this.locs.find((l) => l.civ);

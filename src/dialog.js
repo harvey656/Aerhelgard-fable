@@ -4,6 +4,8 @@ import { BIOMES, BUILDINGS, LOC_TYPES, SKILLS, SKILL_BY_ID, SPELLS, WEAPONS, SHI
 import { G, dayOf, hourOf, isNight } from './state.js';
 import { getLayout, citizensOf } from './settlement.js';
 import * as Q from './quests.js';
+import * as F from './factions.js';
+import { faithOf, guildOf } from './settlement.js';
 import * as I from './items.js';
 
 const npcRec = (c) => (G.save.npc[c.id] || (G.save.npc[c.id] = { d: 38 + (c.seed % 30) }));
@@ -82,8 +84,10 @@ export function conversation(npc) {
   const topics = [], T = (label, run) => topics.push({ label, run });
   const greet = d < 25 ? rnd.pick(['What do you want?', 'Make it quick.']) : d > 70 ? rnd.pick(['Ah, my friend! What can I do for you?', 'Always a pleasure. How can I help?']) : rnd.pick(['Greetings, traveller.', 'Yes?', 'Good ' + (hourOf() < 12 ? 'morning' : hourOf() < 18 ? 'day' : 'evening') + ' to you.', 'Well met.']);
   // quest hand-ins come first
-  for (const q of Q.deliveriesFor(c.id)) T('» Deliver the parcel', () => { Q.complete(q, 1); return `For me? At last! Here is your payment, ${q.gold} gold, as agreed. My thanks.`; });
-  for (const q of Q.activeFor(c.id)) T('» About "' + q.title + '"', () => { if (Q.ready(q)) { const bonus = d > 65 ? 1.1 : 1; const g = Q.complete(q, bonus); rec.d = Math.min(100, rec.d + 8); return `Well done! I knew you had it in you. Here - ${g} gold, and my gratitude.`; } return 'Not finished yet? ' + Q.progressText(q); });
+  for (const t of Q.talkTopics(c, d)) T(t.label, t.run);
+  const fid = F.leads(c, L);
+  if (fid) T({ kingdom: '» Service to the crown', guild: '» Guild business', church: '» The work of the faith' }[F.factionDef(fid).type], () => F.business(fid, c, L));
+  if (c.role === 'Priest') T('Have you tasks for the faithful?', () => { const o = Q.offersFor(L, c, 1, ['gather', 'delivery', 'supply'], 2)[0]; if (!o) return 'Not today. Come again in a day or two.'; o.faction = faithOf(L); return { text: o.desc + `\n\nThe faith can spare ${o.gold} gold, and will remember your service.`, topics: [{ label: 'I will do it', run: () => { Q.accept(o); return 'Go with our blessing.'; } }, { label: 'Not now', run: () => 'As you wish.' }] }; });
   if (keeper && ['smithy', 'trader', 'alchemist', 'arcanist', 'inn'].includes(b.type)) T('Trade', () => { G.ui.openTrade(npc, b, L); });
   if (role === 'Innkeeper') T('Rent a room (10 gold)', () => { if (S.room && S.room.key === L.id + ':' + b.i && S.room.until > G.time) return 'Your room is still paid for. Any of the guest beds, off the back hall.'; if (P.gold < 10) return 'Ten gold for the night. Come back when you have it.'; P.gold -= 10; S.room = { key: L.id + ':' + b.i, until: G.time + 86400 }; G.fn.sfx('coin'); return 'Ten gold - done. Take any guest bed off the back hall. A proper night\'s sleep mends wounds and sharpens the wits.'; });
   if (role === 'Smith') T('Repair my gear', () => { let cost = 0; const worn = P.inv.filter((it) => it.cond !== undefined && it.cond < 100); for (const it of worn) cost += Math.ceil(it.val * (100 - it.cond) / 100 * 0.35) + 1; if (!worn.length) return 'Your gear is in fine shape. Nothing for me to do.'; if (P.gold < cost) return `To put all of that right would be ${cost} gold. You are short.`; P.gold -= cost; for (const it of worn) it.cond = 100; G.fn.sfx('forge'); return `There. Good as new - ${cost} gold. You may also use my forge and anvil to smelt, forge and temper your own work.`; });
@@ -104,7 +108,7 @@ export function conversation(npc) {
     if (C) { mark(C); s += `The nearest city is ${C.name}, ${Q.whereText(L, C)}. `; } if (K) { mark(K); s += `The nearest castle is ${K.name}, ${Q.whereText(L, K)}. `; }
     return s + 'I have marked them on your map.';
   });
-  T('Who are you?', () => `I am ${c.name}, ${ROLE_TEXT[role] || 'a ' + role + ' by trade'}.${b && c.b >= 0 && !keeper && b.type !== 'castle' ? ' I live at ' + b.name + '.' : ''}${d > 65 ? ' And a friend of yours, I should hope.' : ''}`);
+  T('Who are you?', () => `I am ${c.name}, ${S.titles[c.id] ? S.titles[c.id] + ', and ' : ''}${ROLE_TEXT[role] || 'a ' + role + ' by trade'}.${role === 'Guildmaster' ? ' This hall belongs to the ' + F.factionDef(guildOf(L)).name + '.' : role === 'Priest' || role === 'acolyte' ? ' We follow the ' + F.factionDef(faithOf(L)).name + '.' : ''}${b && c.b >= 0 && !keeper && b.type !== 'castle' ? ' I live at ' + b.name + '.' : ''}${d > 65 ? ' And a friend of yours, I should hope.' : ''}`);
   if (L.civ) T('Where can I find...', () => ({ text: 'What are you looking for?', topics: [['inn', 'An inn'], ['smithy', 'A smithy'], ['trader', 'A general trader'], ['alchemist', 'An apothecary'], ['arcanist', 'An arcanist'], ['church', 'A church'], ['guild', 'The guild hall'], ['castle', 'The castle']].filter((e) => e[0] !== 'castle' || L.type === 'castle').map(([t, label]) => ({ label, run: () => { const s = findService(L, t); if (!s) { const o = W.nearest(L.x, L.z, (l) => l.civ && l !== L && getLayout(W, l).buildings.some((x) => x.type === t), 1)[0]; if (o) { mark(o); return `Not in ${L.name}, I am afraid. ${o.name} has one - ${Q.whereText(L, o)}.`; } return 'I know of none.'; } S.marker = { x: s.door.x, z: s.door.z, label: s.name }; return `${s.name}? It is ${Q.whereText(here(), s.door)}. Look for the sign - I have pointed the way for you.`; } })) }));
   T('Flatter (Persuasion)', () => {
     if ((rec.pd || -1) === dayOf() && (rec.pn || 0) >= 3) return 'Enough of that for one day.';
@@ -113,5 +117,6 @@ export function conversation(npc) {
     if (rnd.chance(ch)) { rec.d = Math.min(100, d + Math.round(rnd.range(4, 9) * (1 + P.perk('charm')))); P.gainXP('persuasion', 5); return rnd.pick(['Ha! You have a way with words.', 'Well now, that is kind of you to say.', 'Flatterer. Go on, then.']) + ` (Disposition ${rec.d})`; }
     rec.d = Math.max(0, d - 4); P.gainXP('persuasion', 1.5); return rnd.pick(['Save your honey for the bees.', 'Do I look like a fool to you?', 'Hm.']) + ` (Disposition ${rec.d})`;
   });
-  return { greeting: greet, topics, title: c.name + (ROLE_TEXT[role] && role !== 'servant' ? ', ' + (role[0].toUpperCase() + role.slice(1)) : '') };
+  const title = S.titles[c.id] || (ROLE_TEXT[role] && role !== 'servant' ? role[0].toUpperCase() + role.slice(1) : '');
+  return { greeting: greet, topics, title: c.name + (title ? ', ' + title : '') };
 }

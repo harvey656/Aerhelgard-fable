@@ -6,6 +6,8 @@ import { itemIcon, portrait } from './sprites.js';
 import { describe, itemWeight } from './items.js';
 import { hash01, clamp } from './rng.js';
 import * as Q from './quests.js';
+import * as F from './factions.js';
+import { guildOf } from './settlement.js';
 import { conversation, shopStock, buyPrice, sellPrice, wants } from './dialog.js';
 import { WORLD, HALF } from './world.js';
 import { getLayout } from './settlement.js';
@@ -212,17 +214,25 @@ UI.character = function () {
 
 // ----- journal -----
 UI.journal = function () {
-  const S = G.save, body = h('div', {}), list = h('div', { class: 'list parch', style: 'width:300px;height:56vh' }), det = h('div', { class: 'parch', style: 'width:480px;padding:10px 14px;white-space:pre-wrap;overflow-y:auto;height:56vh' });
-  let sel = S.quests.find((q) => q.id === S.tracked) || S.quests.filter((q) => q.state === 'active')[0];
+  const S = G.save, body = h('div', {}), list = h('div', { class: 'list parch', style: 'width:320px;height:58vh' }), det = h('div', { class: 'parch', style: 'width:500px;padding:10px 14px;white-space:pre-wrap;overflow-y:auto;height:58vh;line-height:1.05' });
+  let sel = S.quests.find((q) => q.id === S.tracked && q.state === 'active') || S.quests.filter((q) => q.state === 'active')[0], selF = null;
   const draw = () => {
     list.innerHTML = ''; const act = S.quests.filter((q) => q.state === 'active'), done = S.quests.filter((q) => q.state === 'done');
-    list.append(h('div', { class: 'note' }, 'Active (' + act.length + ')'));
-    for (const q of act) list.append(h('div', { class: 'item' + (q === sel ? ' sel' : ''), onclick: () => { sel = q; S.tracked = q.id; draw(); } }, (S.tracked === q.id ? '◆ ' : '') + q.title));
+    const row = (q, dim) => h('div', { class: 'item' + (dim ? ' dim' : '') + (q === sel && !selF ? ' sel' : ''), onclick: () => { sel = q; selF = null; if (!dim) S.tracked = q.id; draw(); } }, (S.tracked === q.id && !dim ? '◆ ' : '') + q.title);
+    const mains = act.filter((q) => q.main), sides = act.filter((q) => !q.main);
+    list.append(h('div', { class: 'note' }, 'Main missions (' + mains.length + ')')); for (const q of mains) list.append(row(q));
+    list.append(h('div', { class: 'note', style: 'margin-top:8px' }, 'Contracts & errands (' + sides.length + ')')); for (const q of sides) list.append(row(q));
+    const facs = F.knownFactions();
+    if (facs.length) { list.append(h('div', { class: 'note', style: 'margin-top:8px' }, 'Factions')); for (const f of facs) { const d = F.factionDef(f); list.append(h('div', { class: 'item' + (selF === f ? ' sel' : ''), onclick: () => { selF = f; draw(); } }, h('span', { class: 'n' }, d.name), h('span', { class: 'q', style: 'width:auto' }, d.ranks[F.rankOf(f)]))); } }
     if (done.length) list.append(h('div', { class: 'note', style: 'margin-top:8px' }, 'Completed (' + done.length + ')'));
-    for (const q of done.slice(-12).reverse()) list.append(h('div', { class: 'item dim' + (q === sel ? ' sel' : ''), onclick: () => { sel = q; draw(); } }, q.title));
+    for (const q of done.slice(-14).reverse()) list.append(row(q, true));
     det.innerHTML = '';
-    if (sel) { const t = sel.state === 'active' && Q.questTarget(sel); det.append(h('h3', {}, sel.title), '\n' + sel.desc + '\n\nGiven by ' + sel.giver.name + ' of ' + G.world.locs[sel.giver.loc].name + '.\nReward: ' + sel.gold + ' gold\n\n» ' + Q.progressText(sel) + (t && !G.space ? '\n   (' + Q.whereText(G.player.pos, t) + ' of here)' : '')); }
-    else det.append('No quests yet.\n\nAsk around for work: guild halls in towns and cities always have contracts, and some folk have troubles of their own.');
+    if (selF) { const d = F.factionDef(selF); det.append(h('h3', {}, d.name), '\n' + F.summary(selF)); }
+    else if (sel) {
+      const t = sel.state === 'active' && Q.questTarget(sel);
+      det.append(h('h3', {}, sel.title), '\n' + (sel.main ? '[' + F.factionDef(sel.faction).name + ' - main mission ' + (sel.idx + 1) + ']\n\n' : '') + sel.desc + '\n\nGiven by ' + sel.giver.name + ' of ' + G.world.locs[sel.giver.loc].name + '.\nReward: ' + sel.gold + ' gold' + (sel.main ? '\nNo time limit.' : '') + (sel.steps && sel.state === 'active' ? '' : '\n\n» ' + Q.progressText(sel)) + (t && !G.space ? '\n\nNext: ' + t.name + ', ' + Q.whereText(G.player.pos, t) + ' of here.' : ''));
+      if (sel.steps && sel.state === 'active') det.append('\n\n' + sel.steps.map((o, i) => (i < sel.step ? '✔ ' : i === sel.step ? '» ' : '· ') + (i <= sel.step ? Q.progressText(Object.assign({}, sel, { step: i })).replace(/^\(\d+\/\d+\) /, '') : '...')).join('\n'));
+    } else det.append('No quests yet.\n\nKingdoms, guilds and churches each have a long story of main missions - speak with a castle steward, a guildmaster or a priest. Guild boards, the crown and ordinary folk offer shorter work, which also raises your standing.');
   };
   draw(); body.append(list, det); UI.window('Journal', body, { name: 'journal' });
 };
@@ -268,15 +278,17 @@ UI.talk = function (npc) {
 };
 UI.openQuestBoard = function (npc, L, royal) {
   const body = h('div', {}), list = h('div', { class: 'list parch', style: 'width:640px;height:52vh;white-space:normal' });
+  const fid = royal ? 'k:' + L.id : guildOf(L), fdef = F.factionDef(fid);
   const draw = () => {
     list.innerHTML = '';
     const offers = Q.offersFor(L, npc.c, royal ? 3 : 5, royal ? ['bounty', 'fetch'] : ['delivery', 'fetch', 'bounty', 'slay', 'gather', 'supply']);
     if (royal) for (const o of offers) { o.gold = Math.round(o.gold * 1.8); o.title = 'Royal ' + o.title; }
+    for (const o of offers) o.faction = fid;
     if (!offers.length) list.append(h('div', { style: 'padding:10px' }, 'There is no more work for now. New contracts are posted every few days.'));
     for (const o of offers) list.append(h('div', { style: 'padding:6px 8px;border-bottom:1px solid #8a7048' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', { style: 'font-weight:normal;font-size:23px;color:#6a1a10' }, o.title), h('span', {}, o.gold + ' gold')), h('div', { style: 'white-space:normal;line-height:1.05;margin:3px 0 5px' }, o.desc), h('button', { onclick: () => { Q.accept(o); draw(); } }, 'Accept')));
   };
-  draw(); body.append(h('div', { class: 'col' }, h('div', { class: 'note' }, 'Guild standing: ' + Q.rankName() + '. Better standing means better pay.'), list));
-  UI.window(royal ? 'Royal Commissions' : 'Guild Contracts', body, { name: 'board', onClose: () => { G.talking = null; } });
+  draw(); body.append(h('div', { class: 'col' }, h('div', { class: 'note' }, fdef.name + ' - your rank: ' + fdef.ranks[F.rankOf(fid)] + '. Each contract raises your standing here; main missions come from the ' + (royal ? 'steward and the king' : 'guildmaster') + '.'), list));
+  UI.window(royal ? 'Royal Commissions' : fdef.name + ' Contracts', body, { name: 'board', onClose: () => { G.talking = null; } });
 };
 
 // ----- trade -----

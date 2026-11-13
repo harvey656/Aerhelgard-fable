@@ -55,6 +55,15 @@ and mark distant places on your map.
 apothecaries, arcanists, guild halls (contracts, trainers), churches (healing), castles (22 rooms, king and
 queen in the great hall) and homes. Enter through the front door.
 
+**Factions and main missions.** Every castle rules a kingdom, every guild hall belongs to one of four guilds
+(Free Blades, Circle of the Seventh Page, Gilded Scale, Night Lantern) and every church to one of three faiths.
+Each faction has its own story told through a chain of multi-step main missions with no time limit: kingdoms have
+10 (borders, disputes, a traitor at court, a rival king), guilds 20 (14 for the Night Lantern) about their ideals
+and their feud with a rival guild, and churches 7-8 (creed and leaders, relic delves, then an evil born from or
+against the faith). Later missions need higher rank, earned from the story plus side work for that faction, up to
+a master rank. A growing guild takes over rival halls in nearby towns - its banners go up and you gain a lasting
+bonus. Speak with a castle steward (later the king), any guildmaster, or any priest. Scripts are in `src/factions.js`.
+
 **Quests.** Parcel deliveries to other settlements, relic recovery from dungeons, bounties on dungeon
 bosses, culling monsters, foraging, and supply contracts. Guild standing improves pay.
 
@@ -90,7 +99,8 @@ A few places where the brief was open to interpretation:
 | `src/interior.js` | Building interiors and dungeons (rooms, caves, towers), pathing |
 | `src/entities.js` | Citizens, monsters, AI, projectiles, spawning |
 | `src/player.js`, `src/items.js` | Stats, perks, inventory, combat, magic, item generation |
-| `src/quests.js`, `src/dialog.js` | Quests, conversations, shops and prices |
+| `src/quests.js`, `src/dialog.js` | Quest engine, conversations, shops and prices |
+| `src/factions.js` | Kingdoms, guilds, churches and their main mission scripts |
 | `src/ui.js`, `src/ui2.js` | HUD, windows, menus, character creation, crafting |
 | `src/art.js`, `src/sprites.js` | Procedural textures, sprite atlases, characters, monsters, icons |
 | `src/main.js` | Boot, main loop, input, interaction, transitions, save/load |

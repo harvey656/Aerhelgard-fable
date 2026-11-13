@@ -9,17 +9,18 @@ import { World, HALF, WORLD } from './world.js';
 import { Terrain } from './terrain.js';
 import { initSky, updateSky, interiorFog, setSkyVisible } from './sky.js';
 import { Player, EYE } from './player.js';
-import { getLayout, clearLayouts, clearCitizens, citizensOf, whereabouts } from './settlement.js';
+import { getLayout, clearLayouts, clearCitizens, citizensOf, whereabouts, citizenById, guildOf, faithOf } from './settlement.js';
 import { genBuilding, genDungeon } from './interior.js';
 import { NPC, Monster, updateEntities, clearEnts, shoot, aimEnemy, bolt, spawnLoot, removeBag } from './entities.js';
 import * as I from './items.js';
 import * as Q from './quests.js';
+import * as F from './factions.js';
 import { UI, $ } from './ui.js';
 import './ui2.js';
 import { sfx, audio } from './audio.js';
 import { weaponCanvas } from './sprites.js';
 
-const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v2.save.', META_KEY = 'aerhelgard.v2.meta';
+const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v3.save.', META_KEY = 'aerhelgard.v3.meta';
 let renderer, scene, camera, fx, fxg, locked = false, hadLock = false, tickT = 0, target = null, last = 0;
 const mouse = { l: false, r: false }, input = { fwd: 0, strafe: 0, turn: 0, sprint: false, jump: false, attack: false, block: false };
 G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false, shadows: 1, clouds: true, view: 7 }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
@@ -51,6 +52,7 @@ function resize() {
   camera.aspect = innerWidth / vh; camera.updateProjectionMatrix();
 }
 G.fn.resize = resize;
+G.fn.factionCredit = (q) => F.credit(q);
 G.fn.applyGfx = () => { if (G.terrain) G.terrain.pcx = 1e9; };
 G.fn.saveOpts = () => { audio.vol = G.opts.vol; localStorage.setItem('aerhelgard.opts', JSON.stringify(G.opts)); };
 G.fn.msg = (t, c) => UI.msg(t, c); G.fn.banner = (t) => UI.banner(t); G.fn.flash = (c, d) => UI.flash(c, d); G.fn.sfx = sfx; G.fn.showEnemy = (e) => UI.showEnemy(e);
@@ -116,12 +118,12 @@ function buildWorld(seed) {
   G.world = new World(seed); G.terrain = new Terrain(scene, G.world); G.terrain.outdoor = true; G.phys = G.terrain; G.outPos = null; G.popInit = false;
   setSkyVisible(true);
 }
-function freshSave(seed) { return { seed, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(192 * 192), rep: 0, tracked: 0, marker: null, room: null, lore: {} }; }
+function freshSave(seed) { return { seed, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(192 * 192), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, titles: {} }; }
 
 G.fn.newGame = async function (cfg) {
   G.loading = true; UI.close(true); $('menu').classList.add('hidden');
   await setLoading('Shaping the realm of Aerhelgard...');
-  G.save = freshSave(cfg.seed >>> 0); G.time = 8 * 3600; G.homebound = new Set();
+  G.save = freshSave(cfg.seed >>> 0); G.time = 8 * 3600; G.homebound = new Set(); G.boons = {};
   buildWorld(G.save.seed);
   const P = G.player = new Player(cfg), W = G.world, L = W.start;
   startingKit(P);
@@ -167,7 +169,7 @@ function devStart(q) {
   G.fn.newGame({ name: 'Tester', seed: +q.get('dev') || 1, abil: { wel: 6, pow: 6, int: 5, wil: 5, gui: 4 }, skills }).then(() => {
     const P = G.player; P.gold = 500;
     if (q.has('h')) G.time = +q.get('h') * 3600;
-    window.G = G; window.dev = { enterLevel, leaveLevel, interact, I, Q, UI, Monster, travel: (t) => G.fn.fastTravel(G.world.locs.find((l) => l.type === t), true) };
+    window.G = G; window.dev = { gen: (L, f) => genDungeon(G.world, L, f), enterLevel, leaveLevel, interact, I, Q, F, UI, Monster, lay: (L) => getLayout(G.world, L), cit: citizensOf, cz: (id) => citizenById(G.world, id), guildOf, faithOf, travel: (t) => G.fn.fastTravel(G.world.locs.find((l) => l.type === t), true) };
   });
 }
 
@@ -200,7 +202,12 @@ function enterLevel(lv, fromOutside) {
   G.space = lv; G.phys = lv; G.terrain.group.visible = false; setSkyVisible(false); scene.add(lv.group);
   P.pos.set(lv.spawn.x, 0, lv.spawn.z); P.yaw = lv.spawn.yaw; P.pitch = 0; P.vy = 0; P.grounded = true;
   if (lv.kind === 'building') populateBuilding(lv);
-  else for (const m of lv.mobs) G.ents.push(new Monster(m.id, m.x, m.z, { idx: m.idx, tier: lv.loc.tier, mult: (0.75 + lv.loc.tier * 0.25) * (m.boss ? 1.15 : 1) }));
+  else {
+    const named = lv.last ? Q.dungeonObjectives(lv.loc.id).find((e) => e.kind === 'bounty' && e.o.bossName && !e.o.killed) : null;
+    for (const m of lv.mobs) { const e = new Monster(m.id, m.x, m.z, { idx: m.idx, tier: lv.loc.tier, mult: (0.75 + lv.loc.tier * 0.25) * (m.boss ? (named ? 1.4 : 1.15) : 1) }); if (m.boss && named) e.name = named.o.bossName; G.ents.push(e); }
+    // a story villain is always home, even if this lair's usual master was slain recently
+    if (named && !lv.mobs.some((m) => m.boss)) { const p = lv.randomFloor(rnd, lv.bossRoom) || lv.farthest, e = new Monster(named.o.boss, lv.cx(p[0]), lv.cx(p[1]), { idx: 999, tier: lv.loc.tier, mult: (0.75 + lv.loc.tier * 0.25) * 1.4 }); e.name = named.o.bossName; G.ents.push(e); }
+  }
   sfx('door'); UI.banner(lv.name);
 }
 function leaveLevel() {
@@ -282,7 +289,7 @@ function interact() {
       S.lore[t.poi.id] = 1; const sk = SKILLS[t.poi.seed % SKILLS.length]; UI.flash('#8df', 0.6); sfx('level'); G.fn.msg('Ancient knowledge of ' + sk.name + ' floods your mind.', 'perk'); P.gainXP(sk.id, 70 + P.skills[sk.id].lvl); break; }
     case 'chest': openChest(t); break;
     case 'ldoor': UI.lockpick(t.lock, () => { G.space.openDoor(t); sfx('door'); }); break;
-    case 'relic': { const q = S.quests.find((x) => x.id === t.quest); if (q) { q.have = true; const it = I.mkMisc('relic'); it.name = q.item; it.quest = q.id; P.addItem(it); G.fn.msg('You take the ' + q.item + '. Return it to ' + q.giver.name + '.', 'quest'); sfx('quest'); } t.gone = true; t.prop[0] = 'pedestalEmpty'; G.space.rebuildProps(); break; }
+    case 'relic': Q.takeRelic(t.quest); t.gone = true; t.prop[0] = 'pedestalEmpty'; G.space.rebuildProps(); break;
     case 'bed': {
       const lv = G.space, key = lv.loc.id + ':' + lv.b.i;
       if (lv.b.type === 'inn') { if (t.guest && S.room && S.room.key === key && S.room.until > G.time) UI.rest(true); else G.fn.msg(t.guest ? 'Rent a room from the innkeeper first.' : 'This bed belongs to someone else.'); }
@@ -391,7 +398,7 @@ async function loadGame(slot) {
   await setLoading('Restoring your journey...');
   const d = JSON.parse(raw);
   G.save = Object.assign(freshSave(d.save.seed), d.save, { explored: unb64(d.save.explored) }); G.time = d.time;
-  buildWorld(G.save.seed); Q.homebound();
+  buildWorld(G.save.seed); Q.homebound(); F.boons();
   const P = G.player = Player.fromJSON(d.player);
   if (d.space) {
     const L = G.world.locs[d.space.loc], lay = getLayout(G.world, L), pos = P.pos.clone(), yaw = P.yaw;

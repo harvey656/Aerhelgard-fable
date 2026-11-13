@@ -331,3 +331,29 @@ export const BUILDINGS = {
 
 export const MONTHS = ['Frostwane', 'Rainsong', 'Greentide', 'Sunhigh', 'Goldfall', 'Emberdusk', 'Longnight', 'Deepfrost'];
 export const DAY_LEN = 48 * 60; // real seconds per game day
+
+// ---------- Factions ----------
+export const RANK_REP = [0, 15, 40, 75, 120]; // standing needed for ranks 0-4; rank 5 (master) is earned by finishing the faction's story
+export const KINGDOM_RANKS = ['Outlander', 'Subject', 'Yeoman', 'Squire', 'Knight', 'Lord Protector'];
+export const GUILDS = {
+  blades: { name: 'Free Blades', hall: 'Free Blades\' Hall', rival: 'lantern', ranks: ['Outsider', 'Hireling', 'Sellsword', 'Sergeant', 'Captain', 'Blademaster'],
+    ideal: 'A contract kept is worth more than a crown. The Free Blades sell their swords to any honest purse, and have never once broken their word.',
+    boon: ['allDmg', 0.04, '+4% weapon damage'], mark: 'the roads are patrolled by Free Blades' },
+  page: { name: 'Circle of the Seventh Page', hall: 'Hall of the Seventh Page', rival: 'scale', ranks: ['Outsider', 'Reader', 'Scribe', 'Lector', 'Magister', 'Master of Pages'],
+    ideal: 'Knowledge hoarded is knowledge lost. The Circle seeks the seven scattered pages of the First Grimoire, and holds that magic belongs to those who study it, not those who can pay.',
+    boon: ['costAll', 0.05, '-5% spell cost'], mark: 'the Circle teaches letters to any child who asks' },
+  scale: { name: 'Gilded Scale', hall: 'Gilded Scale Counting-House', rival: 'page', ranks: ['Outsider', 'Porter', 'Factor', 'Broker', 'Syndic', 'Master of Coin'],
+    ideal: 'Every road is a river of gold for those who keep it open. The Gilded Scale binds the realm together with trade, and believes a fair price ends more wars than a sharp sword.',
+    boon: ['barter', 0.04, '4% better prices'], mark: 'the markets are fat with Gilded Scale goods' },
+  lantern: { name: 'Night Lantern', hall: 'Lantern House', rival: 'blades', ranks: ['Outsider', 'Wick', 'Shade', 'Whisper', 'Keeper', 'Master of Lanterns'],
+    ideal: 'Someone must keep a light in the dark places. The Night Lantern trades in secrets, and believes a quiet word in the right ear spares a hundred lives a battle would spend.',
+    boon: ['stealth', 0.07, 'harder to notice'], mark: 'the Night Lantern hears everything said after dark' },
+};
+export const FAITHS = {
+  dawn: { name: 'Church of the Dawn', temple: 'Chapel of the Dawn', ranks: ['Stranger', 'Seeker', 'Candle-bearer', 'Dawnsworn', 'Lightwarden', 'Master of the Dawn'],
+    ideal: 'The Dawn teaches that every darkness ends, and that those who carry light are bound to share it.', boon: ['regenFlat', 4, 'slow health regeneration'] },
+  moon: { name: 'Temple of the Silver Moon', temple: 'Temple of the Silver Moon', ranks: ['Stranger', 'Seeker', 'Tide-reader', 'Moonsworn', 'Veilkeeper', 'Master of Tides'],
+    ideal: 'The Silver Moon teaches that all things wax and wane, and that wisdom is knowing which tide you stand in.', boon: ['manaRegen', 0.3, '+30% mana regeneration'] },
+  hearth: { name: 'Hearth of the Mother', temple: 'Shrine of the Hearth-Mother', ranks: ['Stranger', 'Guest', 'Kindler', 'Hearthsworn', 'Warden of the Flame', 'Master of the Hearth'],
+    ideal: 'The Mother teaches that no door should be barred to the hungry, and that a shared fire is the oldest law there is.', boon: ['physResist', 0.06, '6% less physical damage'] },
+};

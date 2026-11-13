@@ -35,7 +35,7 @@ export class Player {
   S(id) { return this.skills[id].lvl + this.bonus('skill:' + id); }
   perk(key) {
     if (!this._perk) { this._perk = {}; for (const s of SKILLS) { const n = Math.floor(this.skills[s.id].lvl / PERK_STEP); for (let i = 0; i < Math.min(n, s.perks.length); i++) for (const k in s.perks[i][2]) this._perk[k] = (this._perk[k] || 0) + s.perks[i][2][k]; } }
-    return this._perk[key] || 0;
+    return (this._perk[key] || 0) + (G.boons ? G.boons[key] || 0 : 0);
   }
   maxHp() { return Math.round(30 + this.A('wel') * 10 + this.level * 5 + this.bonus('hp')); }
   maxMp() { return Math.round(10 + this.A('int') * 10 + this.A('wil') * 3 + this.bonus('mp')); }
@@ -199,7 +199,7 @@ export class Player {
       let pm = 0, crit = 0.04 + this.A('gui') * 0.012, pierce = 0;
       if (sk === 'long') { pm = this.perk('longDmg'); crit += this.perk('longCrit'); } if (sk === 'blunt') { pm = this.perk('bluntDmg'); pierce = this.perk('bluntPierce'); }
       if (sk === 'axes') pm = this.perk('axeDmg'); if (sk === 'polearms') { pm = this.perk('poleDmg'); crit += this.perk('poleCrit'); }
-      dmg *= 1 + pm;
+      dmg *= 1 + pm + this.perk('allDmg');
       let note = '';
       if (!e.alert) { dmg *= 1.5 + (sk === 'short' ? this.perk('backstab') : 0); note = 'Sneak attack! '; }
       if (rnd.chance(crit)) { dmg *= 2; note += 'Critical hit! '; }
@@ -220,13 +220,13 @@ export class Player {
     if (f < 0.3) return;
     if (!this.consume('m:arrow', 1)) return G.fn.msg('You have no arrows.', 'bad');
     const S = this.S('archery');
-    let dmg = w.dmg * f * (0.55 + S / 100 * 0.9) * (1 + (this.A('gui') - 4) * 0.05) * (1 + this.perk('bowDmg')) * (w.cond <= 0 ? 0.5 : 1);
+    let dmg = w.dmg * f * (0.55 + S / 100 * 0.9) * (1 + (this.A('gui') - 4) * 0.05) * (1 + this.perk('bowDmg') + this.perk('allDmg')) * (w.cond <= 0 ? 0.5 : 1);
     const crit = rnd.chance(0.04 + this.A('gui') * 0.012 + this.perk('bowCrit')); if (crit) dmg *= 2;
     G.fn.shoot({ owner: this, dmg, speed: 30 + 30 * f, kind: 'arrow', pierce: this.perk('bowPierce'), skill: 'archery', crit });
     w.cond = Math.max(0, w.cond - 0.15); G.fn.sfx('bow'); this.cd = 0.25;
     if (this.hasBuff('veil')) this.buffs = this.buffs.filter((b) => b.fx !== 'veil');
   }
-  spellCost(id) { const S = SPELLS[id], sch = S.school; return Math.max(1, Math.round(S.cost * (1 - this.perk('cost' + sch[0].toUpperCase() + sch.slice(1))) * (1 - this.S(sch) / 300))); }
+  spellCost(id) { const S = SPELLS[id], sch = S.school; return Math.max(1, Math.round(S.cost * (1 - this.perk('cost' + sch[0].toUpperCase() + sch.slice(1)) - this.perk('costAll')) * (1 - this.S(sch) / 300))); }
   cast() {
     if (this.castCd > 0) return;
     const id = this.spell; if (!id) return G.fn.msg('You have no spell readied. Buy tomes from an Arcanist.');
@@ -252,7 +252,7 @@ export class Player {
     for (const b of this.buffs) { b.t -= dt; if (b.fx === 'regen') this.hp = Math.min(this.maxHp(), this.hp + b.mag * dt); }
     if (this.buffs.some((b) => b.t <= 0)) { for (const b of this.buffs) if (b.t <= 0) G.fn.msg(b.name + ' fades.'); this.buffs = this.buffs.filter((b) => b.t > 0); this.clampVitals(); }
     if (this.poison > 0) { const d = Math.min(this.poison, dt * 1.5); this.poison -= d; this.hp -= d; if (this.hp <= 0) { this.hp = 0; G.fn.onDeath('poison'); return; } }
-    const rg = this.bonus('regen'); if (rg) this.hp = Math.min(this.maxHp(), this.hp + rg / 10 * dt);
+    const rg = this.bonus('regen') + this.perk('regenFlat'); if (rg) this.hp = Math.min(this.maxHp(), this.hp + rg / 10 * dt);
     this.mp = Math.min(this.maxMp(), this.mp + (0.25 + this.A('wil') * 0.11) * (1 + this.perk('manaRegen')) * dt);
     // attacks
     const bow = this.weapon('rhand') && this.weapon('rhand').bow;

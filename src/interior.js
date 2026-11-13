@@ -437,7 +437,8 @@ function stockDungeon(lv, rng, L, D, last) {
     if (!killed.includes(999)) lv.mobs.push({ id: bossId, x: lv.cx(bp[0]), z: lv.cx(bp[1]), idx: 999, boss: true });
     chest(lv.randomFloor(rng, lv.bossRoom), 1, 0);
     // quest relic
-    const q = save.quests.find((qq) => qq.state === 'active' && qq.type === 'fetch' && qq.dungeon === L.id && !qq.have);
-    if (q) { const p = lv.randomFloor(rng, lv.bossRoom) || fb; lv.taken.add(p[1] * W + p[0]); lv.addProp('pedestal', lv.cx(p[0]), lv.cx(p[1]), { solid: 0.4, light: 8, lv: 0.6, inter: { kind: 'relic', quest: q.id, label: 'Take ' + q.item } }); }
+    let q = null, qo = null;
+    for (const qq of save.quests) { if (qq.state !== 'active') continue; const o = qq.steps ? qq.steps[qq.step] : qq; if (o && (o.kind || qq.type) === 'fetch' && o.dungeon === L.id && !o.have) { q = qq; qo = o; break; } }
+    if (q) { const p = lv.randomFloor(rng, lv.bossRoom) || fb; lv.taken.add(p[1] * W + p[0]); lv.addProp('pedestal', lv.cx(p[0]), lv.cx(p[1]), { solid: 0.4, light: 8, lv: 0.6, inter: { kind: 'relic', quest: q.id, label: 'Take the ' + qo.item } }); }
   }
 }

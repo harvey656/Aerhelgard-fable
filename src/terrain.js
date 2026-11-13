@@ -53,6 +53,8 @@ export class Terrain {
     if (night !== this.night) { this.night = night; for (const c of this.chunks.values()) if (c.nightMesh) c.nightMesh.visible = night; }
     return this.queue.length;
   }
+  // throw away chunks near a point so they are rebuilt (a settlement changed)
+  rebuildNear(x, z, r) { for (const [k, c] of this.chunks) { const cx = (c.cx + 0.5) * CHUNK, cz = (c.cz + 0.5) * CHUNK; if (Math.abs(cx - x) < r + CHUNK && Math.abs(cz - z) < r + CHUNK) { disposeGroup(c.group); this.chunks.delete(k); } } this.pcx = 1e9; }
   loadAround(px, pz) { this.pcx = 1e9; while (this.update(px, pz, 50, this.night) > 0); }
   chunkAt(x, z) { return this.chunks.get(ckey(Math.floor(x / CHUNK), Math.floor(z / CHUNK))); }
 
