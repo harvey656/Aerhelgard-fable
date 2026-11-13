@@ -200,7 +200,7 @@ function populateBuilding(lv) {
   }
   if (b.type === 'inn') { // evening patrons drawn from the townsfolk
     const lay = getLayout(W, L), spots = lv.spots.filter((s) => s.role === 'patron'), r = new RNG(hash2(L.id, b.i, dayOf()));
-    for (let i = 0, n = 0; i < 60 && n < spots.length; i++) { const bb = r.pick(lay.buildings), c = r.pick(citizensOf(L, bb)); if (bb !== b && !used.has(c) && whereabouts(c, hour) === 'inn') { used.add(c); const s = spots[n++]; G.ents.push(new NPC(c, s.x, s.z, { room: s.room, range: 0 })); } }
+    for (let i = 0, n = 0; i < 60 && n < spots.length; i++) { const bb = r.pick(lay.buildings), c = r.pick(citizensOf(L, bb)); if (c && bb !== b && !used.has(c) && whereabouts(c, hour) === 'inn') { used.add(c); const s = spots[n++]; G.ents.push(new NPC(c, s.x, s.z, { room: s.room, range: 0 })); } }
   }
 }
 function makeInterior(L, b) { const H = b.home && G.save.homes[L.id]; return H && H.owned ? genHome(G.world, L, b, H) : genBuilding(G.world, L, b); }
