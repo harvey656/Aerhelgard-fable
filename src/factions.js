@@ -302,7 +302,9 @@ export function credit(q) {
 // A guild that grows takes over the nearest hall of another guild, and its banners go up in that town.
 function spreadInfluence(fid, from) {
   const W = G.world, S = G.save, def = factionDef(fid);
-  const T = W.nearest(from.x, from.z, (l) => BIG(l) && guildOf(l) === def.rival, 1)[0] || W.nearest(from.x, from.z, (l) => BIG(l) && guildOf(l) !== fid, 1)[0];
+  const halls = {}; for (const l of W.locs) if (BIG(l)) halls[guildOf(l)] = (halls[guildOf(l)] || 0) + 1;
+  const free = (l) => BIG(l) && halls[guildOf(l)] > 1; // a guild never loses its last hall
+  const T = W.nearest(from.x, from.z, (l) => free(l) && guildOf(l) === def.rival, 1)[0] || W.nearest(from.x, from.z, (l) => free(l) && guildOf(l) !== fid, 1)[0];
   if (!T) return;
   S.guildOf[T.id] = fid; clearLayout(T.id);
   if (G.terrain) G.terrain.rebuildNear(T.x, T.z, T.r + 80);

@@ -315,13 +315,13 @@ let mapBase = null, mapZoom = 0, mapCx = 0, mapCz = 0;
 const PIN = { farm: '#c8b060', village: '#e0c070', town: '#f0d890', city: '#fff0b0', castle: '#ffffff', crypt: '#b8b8c8', cave: '#a08060', den: '#c06040', ruin: '#d0a060', tower: '#a090d0' };
 UI.map = function () {
   const W = G.world, P = G.player, S = G.save;
-  if (!mapBase || mapBase.seed !== W.seed) { const n = 384, c = document.createElement('canvas'); c.width = c.height = n; c.getContext('2d').putImageData(new ImageData(W.mapImage(n), n, n), 0, 0); mapBase = c; mapBase.seed = W.seed; }
+  if (!mapBase || mapBase.seed !== W.seed || mapBase.size !== W.size) { const n = 384, c = document.createElement('canvas'); c.width = c.height = n; c.getContext('2d').putImageData(new ImageData(W.mapImage(n), n, n), 0, 0); mapBase = c; mapBase.seed = W.seed; mapBase.size = W.size; mapZoom = 0; }
   const sz = Math.min(innerHeight - 190, innerWidth - 380, 760), cv = h('canvas', { width: sz, height: sz }), g = cv.getContext('2d');
   const info = h('div', { class: 'parch', style: 'width:270px;padding:8px 10px;white-space:pre-wrap;height:' + sz + 'px;overflow-y:auto' });
   const here = G.outPos || P.pos;
-  if (!mapZoom) { mapZoom = sz / 9000; } mapCx = here.x; mapCz = here.z;
-  const fog = document.createElement('canvas'); fog.width = fog.height = 192; const fg = fog.getContext('2d'), fd = fg.createImageData(192, 192);
-  for (let i = 0; i < 192 * 192; i++) { fd.data[i * 4] = 196; fd.data[i * 4 + 1] = 176; fd.data[i * 4 + 2] = 134; fd.data[i * 4 + 3] = S.explored[i] ? 0 : 232; } fg.putImageData(fd, 0, 0);
+  if (!mapZoom) { mapZoom = sz / Math.min(9000, WORLD); } mapCx = here.x; mapCz = here.z;
+  const fog = document.createElement('canvas'); const EG = W.eg; fog.width = fog.height = EG; const fg = fog.getContext('2d'), fd = fg.createImageData(EG, EG);
+  for (let i = 0; i < EG * EG; i++) { fd.data[i * 4] = 196; fd.data[i * 4 + 1] = 176; fd.data[i * 4 + 2] = 134; fd.data[i * 4 + 3] = S.explored[i] ? 0 : 232; } fg.putImageData(fd, 0, 0);
   let sel = null, pins = [];
   const sx = (x) => (x - mapCx) * mapZoom + sz / 2, sy = (z) => (z - mapCz) * mapZoom + sz / 2;
   const draw = () => {
@@ -329,6 +329,9 @@ UI.map = function () {
     g.drawImage(mapBase, sx(-HALF), sy(-HALF), WORLD * mapZoom, WORLD * mapZoom);
     g.strokeStyle = 'rgba(90,60,30,.7)'; g.lineWidth = Math.max(1, mapZoom * 8);
     for (const r of W.roads) { g.beginPath(); r.pts.forEach((p, i) => (i ? g.lineTo(sx(p[0]), sy(p[1])) : g.moveTo(sx(p[0]), sy(p[1])))); g.stroke(); }
+    g.strokeStyle = 'rgba(52,96,128,.95)';
+    for (const r of W.rivers) { g.lineWidth = Math.max(1.5, mapZoom * 14); g.beginPath(); for (let i = 0; i < r.pts.length; i += 2) { const p = r.pts[i]; if (i) g.lineTo(sx(p[0]), sy(p[1])); else g.moveTo(sx(p[0]), sy(p[1])); } const e = r.pts[r.pts.length - 1]; g.lineTo(sx(e[0]), sy(e[1])); g.stroke(); }
+    if (mapZoom > 0.06) { g.fillStyle = '#5a3a1a'; for (const b of W.bridges) g.fillRect(sx(b.x) - 3, sy(b.z) - 3, 6, 6); }
     g.drawImage(fog, sx(-HALF), sy(-HALF), WORLD * mapZoom, WORLD * mapZoom);
     pins = []; g.font = '18px VT323'; g.textAlign = 'center';
     for (const L of W.locs) {

@@ -20,7 +20,7 @@ import './ui2.js';
 import { sfx, audio } from './audio.js';
 import { weaponCanvas } from './sprites.js';
 
-const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v3.save.', META_KEY = 'aerhelgard.v3.meta';
+const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v4.save.', META_KEY = 'aerhelgard.v4.meta';
 let renderer, scene, camera, fx, fxg, locked = false, hadLock = false, tickT = 0, target = null, last = 0;
 const mouse = { l: false, r: false }, input = { fwd: 0, strafe: 0, turn: 0, sprint: false, jump: false, attack: false, block: false };
 G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false, shadows: 1, clouds: true, view: 7 }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
@@ -111,20 +111,20 @@ function readInput() {
 
 // ---------- new game / world ----------
 function setLoading(text) { $('loadText').textContent = text; $('loading').classList.remove('hidden'); return new Promise((r) => setTimeout(r, 30)); }
-function buildWorld(seed) {
+function buildWorld(seed, size) {
   if (G.terrain) G.terrain.dispose();
   if (G.space) { scene.remove(G.space.group); G.space.dispose(); G.space = null; }
   clearEnts(); clearLayouts(); clearCitizens();
-  G.world = new World(seed); G.terrain = new Terrain(scene, G.world); G.terrain.outdoor = true; G.phys = G.terrain; G.outPos = null; G.popInit = false;
+  G.world = new World(seed, size); G.terrain = new Terrain(scene, G.world); G.terrain.outdoor = true; G.phys = G.terrain; G.outPos = null; G.popInit = false;
   setSkyVisible(true);
 }
-function freshSave(seed) { return { seed, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(192 * 192), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, titles: {} }; }
+function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, titles: {} }; }
 
 G.fn.newGame = async function (cfg) {
   G.loading = true; UI.close(true); $('menu').classList.add('hidden');
   await setLoading('Shaping the realm of Aerhelgard...');
-  G.save = freshSave(cfg.seed >>> 0); G.time = 8 * 3600; G.homebound = new Set(); G.boons = {};
-  buildWorld(G.save.seed);
+  G.save = freshSave(cfg.seed >>> 0, cfg.size || 48); G.time = 8 * 3600; G.homebound = new Set(); G.boons = {};
+  buildWorld(G.save.seed, G.save.size);
   const P = G.player = new Player(cfg), W = G.world, L = W.start;
   startingKit(P);
   P.pos.set(L.x + 5, 0, L.z + 6); P.yaw = 0.6;
@@ -166,7 +166,7 @@ G.fn.onDeath = function (cause) { if (G.mode !== 'play') return; G.mode = 'dead'
 
 function devStart(q) {
   const skills = {}; for (const s of SKILLS) skills[s.id] = 30;
-  G.fn.newGame({ name: 'Tester', seed: +q.get('dev') || 1, abil: { wel: 6, pow: 6, int: 5, wil: 5, gui: 4 }, skills }).then(() => {
+  G.fn.newGame({ name: 'Tester', seed: +q.get('dev') || 1, size: +q.get('size') || 48, abil: { wel: 6, pow: 6, int: 5, wil: 5, gui: 4 }, skills }).then(() => {
     const P = G.player; P.gold = 500;
     if (q.has('h')) G.time = +q.get('h') * 3600;
     window.G = G; window.dev = { gen: (L, f) => genDungeon(G.world, L, f), enterLevel, leaveLevel, interact, I, Q, F, UI, Monster, lay: (L) => getLayout(G.world, L), cit: citizensOf, cz: (id) => citizenById(G.world, id), guildOf, faithOf, travel: (t) => G.fn.fastTravel(G.world.locs.find((l) => l.type === t), true) };
@@ -368,13 +368,13 @@ function worldTick() { // twice a second: discovery, exploration fog
   const P = G.player, W = G.world, S = G.save; if (G.space) return;
   const L = W.locAt(P.pos.x, P.pos.z, 35); if (L) discover(L);
   const cx = Math.floor((P.pos.x + HALF) / 250), cz = Math.floor((P.pos.z + HALF) / 250);
-  for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const x = cx + i, z = cz + j; if (x >= 0 && z >= 0 && x < 192 && z < 192 && i * i + j * j < 6) S.explored[z * 192 + x] = 1; }
-  if (Math.abs(P.pos.x) > HALF - 160 || Math.abs(P.pos.z) > HALF - 160) { if (!worldTick.warned) G.fn.msg('Beyond here the maps show nothing. You can go no further.'); worldTick.warned = true; } else worldTick.warned = false;
+  for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const x = cx + i, z = cz + j; if (x >= 0 && z >= 0 && x < W.eg && z < W.eg && i * i + j * j < 6) S.explored[z * W.eg + x] = 1; }
+  if (Math.abs(P.pos.x) > HALF - 160 || Math.abs(P.pos.z) > HALF - 160) { if (!worldTick.warned) G.fn.msg('The open sea stretches on without end. You can go no further.'); worldTick.warned = true; } else worldTick.warned = false;
 }
 
 // ---------- save / load ----------
 function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); }
-function unb64(s) { const b = atob(s), u = new Uint8Array(192 * 192); for (let i = 0; i < b.length && i < u.length; i++) u[i] = b.charCodeAt(i); return u; }
+function unb64(s, n) { const b = atob(s), u = new Uint8Array(n); for (let i = 0; i < b.length && i < u.length; i++) u[i] = b.charCodeAt(i); return u; }
 function saveGame(slot, quiet) {
   if (G.mode !== 'play' || G.player.hp <= 0) return;
   const P = G.player, S = Object.assign({}, G.save, { explored: b64(G.save.explored) });
@@ -397,8 +397,8 @@ async function loadGame(slot) {
   G.loading = true; G.mode = 'menu'; $('menu').classList.add('hidden');
   await setLoading('Restoring your journey...');
   const d = JSON.parse(raw);
-  G.save = Object.assign(freshSave(d.save.seed), d.save, { explored: unb64(d.save.explored) }); G.time = d.time;
-  buildWorld(G.save.seed); Q.homebound(); F.boons();
+  { const fs = freshSave(d.save.seed, d.save.size || 48); G.save = Object.assign(fs, d.save, { explored: unb64(d.save.explored, fs.explored.length) }); } G.time = d.time;
+  buildWorld(G.save.seed, G.save.size); Q.homebound(); F.boons();
   const P = G.player = Player.fromJSON(d.player);
   if (d.space) {
     const L = G.world.locs[d.space.loc], lay = getLayout(G.world, L), pos = P.pos.clone(), yaw = P.yaw;

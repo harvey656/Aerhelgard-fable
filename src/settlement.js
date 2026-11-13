@@ -22,8 +22,8 @@ export function clearLayouts() { cache.clear(); }
 export function clearLayout(id) { cache.delete(id); }
 // Which guild keeps the hall in this settlement, and which faith its churches follow
 const GIDS = Object.keys(GUILDS), FIDS = Object.keys(FAITHS);
-export function guildOf(L) { const o = G.save && G.save.guildOf && G.save.guildOf[L.id]; return o || GIDS[hash2(L.id, 31, L.seed) % GIDS.length]; }
-export function faithOf(L) { return FIDS[hash2(L.id, 47, L.seed) % FIDS.length]; }
+export function guildOf(L) { const o = G.save && G.save.guildOf && G.save.guildOf[L.id]; return o || GIDS[L.guild !== undefined ? L.guild : hash2(L.id, 31, L.seed) % GIDS.length]; }
+export function faithOf(L) { return FIDS[L.faith !== undefined ? L.faith : hash2(L.id, 47, L.seed) % FIDS.length]; }
 export function realmName(W, L) { const C = W.locs[L.realm]; return 'Kingdom of ' + C.name.replace(/^(Castle|Fort|Hold of) /, ''); }
 
 function mkBuilding(lay, type, x, z, w, d, h, nx, nz, extra) {

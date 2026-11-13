@@ -284,7 +284,8 @@ export class Player {
     const run = input.sprint && moving && this.st > 1 && enc <= 1 && !this.sneak && f >= 0;
     let sp = (run ? 8.4 : 4.7) * this.speedMult();
     const gh0 = ph.groundAt(p.x, p.z);
-    const water = ph.outdoor && gh0 < -0.45 && !this.hasBuff('waterwalk');
+    const wl = ph.outdoor ? ph.waterLevel(p.x, p.z) : -1e9;
+    const water = gh0 < wl - 0.45 && !this.hasBuff('waterwalk');
     if (water) sp *= 0.55;
     if (run) this.st = Math.max(0, this.st - dt * 7 * (1 - this.perk('sprintCost')));
     else this.st = Math.min(this.maxSt(), this.st + dt * (moving ? 4 : 8) * (1 + (this.A('wil') - 4) * 0.06));
@@ -304,8 +305,8 @@ export class Player {
       if (this.stepT <= 0 && this.grounded) { this.stepT = 2.6; G.fn.sfx(water ? 'splash' : 'step'); }
     }
     let gh = ph.groundAt(p.x, p.z);
-    if (ph.outdoor && this.hasBuff('waterwalk') && gh < 0) gh = 0;
-    if (ph.outdoor && gh < -1.35) gh = -1.35; // swim
+    if (this.hasBuff('waterwalk') && gh < wl) gh = wl;
+    if (gh < wl - 1.35) gh = wl - 1.35; // swim
     if (input.jump && this.grounded && this.st > 6 && !water) { this.vy = 6.4; this.grounded = false; this.st -= 6; }
     if (!this.grounded) {
       this.vy -= 19 * dt; p.y += this.vy * dt;

@@ -20,6 +20,7 @@ const FLORA_SETS = [
   { dens: 0.5, sp: [['willow', 3, 0.5], ['reeds', 4, 0], ['deadtree', 2, 0.3], ['bush', 1, 0], ['grass', 1.5, 0]] },
 ];
 const FORAGE_RATE = [3.2, 0.6, 1.3, 0.9, 1.8];
+const SAND = [lin(0.78), lin(0.7), lin(0.48)], GRAVEL = [lin(0.33), lin(0.33), lin(0.3)];
 const ROCK = [lin(0.4), lin(0.39), lin(0.37)], SNOW = [0.9, 0.92, 0.96], DIRT = [lin(0.42), lin(0.35), lin(0.24)], COBBLE = [lin(0.45), lin(0.43), lin(0.4)], ROAD = [lin(0.5), lin(0.4), lin(0.27)], MUD = [lin(0.2), lin(0.19), lin(0.13)];
 const BCOL = BIOMES.map((b) => [b.ground.map(lin), b.ground2.map(lin)]);
 
@@ -28,7 +29,7 @@ export class Terrain {
     this.scene = scene; this.world = world; this.chunks = new Map(); this.queue = []; this.pcx = 1e9; this.pcz = 1e9;
     this.pendingCamps = [];
     this.group = new THREE.Group(); scene.add(this.group);
-    this.water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400).rotateX(-Math.PI / 2), M.water);
+    this.water = new THREE.Mesh(new THREE.PlaneGeometry(3600, 3600).rotateX(-Math.PI / 2), M.water);
     this.water.position.y = 0; this.water.renderOrder = 2; this.group.add(this.water);
   }
   dispose() { for (const c of this.chunks.values()) disposeGroup(c.group); this.chunks.clear(); this.scene.remove(this.group); }
@@ -47,7 +48,7 @@ export class Terrain {
     const t0 = performance.now();
     while (this.queue.length && performance.now() - t0 < budgetMs) { const q = this.queue.pop(); this.build(q[1], q[2]); }
     this.water.position.x = Math.round(px / 32) * 32; this.water.position.z = Math.round(pz / 32) * 32;
-    M.water.map.offset.x = performance.now() * 0.00002; M.water.map.repeat.set(175, 175);
+    M.water.map.offset.x = performance.now() * 0.00002; M.water.map.repeat.set(450, 450); M.river.map.offset.y = -performance.now() * 0.00012;
     const sh = G.opts && G.opts.shadows ? (G.opts.shadows > 1 ? 3 : 2) : -1;
     for (const c of this.chunks.values()) c.shadowMesh.visible = Math.abs(c.cx - cx) <= sh && Math.abs(c.cz - cz) <= sh;
     if (night !== this.night) { this.night = night; for (const c of this.chunks.values()) if (c.nightMesh) c.nightMesh.visible = night; }
@@ -64,17 +65,21 @@ export class Terrain {
     const fx = (x - c.cx * CHUNK) / S, fz = (z - c.cz * CHUNK) / S;
     const i = clamp(Math.floor(fx), 0, N - 1), j = clamp(Math.floor(fz), 0, N - 1), u = fx - i, v = fz - j, H = c.H;
     const a = H[j * V + i], b = H[j * V + i + 1], d = H[(j + 1) * V + i], e = H[(j + 1) * V + i + 1];
-    return u + v <= 1 ? a + (b - a) * u + (d - a) * v : e + (d - e) * (1 - u) + (b - e) * (1 - v);
+    let g = u + v <= 1 ? a + (b - a) * u + (d - a) * v : e + (d - e) * (1 - u) + (b - e) * (1 - v);
+    const bs = this.world.bridgesNear(x, z);
+    if (bs) for (const br of bs) { const rx = x - br.x, rz = z - br.z; if (Math.abs(rx * br.dx + rz * br.dz) <= br.half + 0.6 && Math.abs(-rx * br.dz + rz * br.dx) <= 2.8 && g < br.y) g = br.y; }
+    return g;
   }
+  waterLevel(x, z) { return this.world.waterLevel(x, z); }
 
   build(cx, cz) {
     const W = this.world, ox = cx * CHUNK, oz = cz * CHUNK, E = V + 2;
     const hs = new Float32Array(E * E), H = new Float32Array(V * V);
     const ba = new Uint8Array(V * V), bb = new Uint8Array(V * V), bt = new Float32Array(V * V), lw = new Float32Array(V * V), locs = new Array(V * V);
-    const locSet = new Set();
+    const locSet = new Set(), rs = new Float32Array(V * V);
     for (let j = 0; j < E; j++) for (let i = 0; i < E; i++) {
       const h = W.height(ox + (i - 1) * S, oz + (j - 1) * S); hs[j * E + i] = h;
-      if (i > 0 && j > 0 && i <= V && j <= V) { const k = (j - 1) * V + i - 1; H[k] = h; ba[k] = W.ba; bb[k] = W.bb; bt[k] = W.bt; lw[k] = W.locW; locs[k] = W.inLoc; if (W.inLoc) locSet.add(W.inLoc); }
+      if (i > 0 && j > 0 && i <= V && j <= V) { const k = (j - 1) * V + i - 1; H[k] = h; rs[k] = W.rvNear; ba[k] = W.ba; bb[k] = W.bb; bt[k] = W.bt; lw[k] = W.locW; locs[k] = W.inLoc; if (W.inLoc) locSet.add(W.inLoc); }
     }
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
     const nrmY = new Float32Array(V * V), nrm = new Float32Array(V * V * 3);
@@ -91,7 +96,10 @@ export class Terrain {
       r = lerp(r, ROCK[0], rk); g = lerp(g, ROCK[1], rk); b = lerp(b, ROCK[2], rk);
       const sn = sstep(170, 215, h + n1 * 30) * clamp((ny - 0.55) * 4, 0, 1);
       r = lerp(r, SNOW[0], sn); g = lerp(g, SNOW[1], sn); b = lerp(b, SNOW[2], sn);
-      if (h < 0.15) { const m = clamp((0.15 - h) * 2, 0, 1); r = lerp(r, MUD[0], m); g = lerp(g, MUD[1], m); b = lerp(b, MUD[2], m); }
+      const sw = ba[k] === B_SWAMP ? t : bb[k] === B_SWAMP ? 1 - t : 0;
+      if (h < 2 && sw < 0.6) { const m = (1 - sstep(0.7, 2, h)) * (1 - sw) * (1 - sstep(-6, -14, h) * 0.5); r = lerp(r, SAND[0], m); g = lerp(g, SAND[1], m); b = lerp(b, SAND[2], m); }
+      if (h < 0.15 && sw > 0) { const m = clamp((0.15 - h) * 2, 0, 1) * sw; r = lerp(r, MUD[0], m); g = lerp(g, MUD[1], m); b = lerp(b, MUD[2], m); }
+      if (rs[k] === rs[k] && h < rs[k] + 0.4) { r = lerp(r, GRAVEL[0], 0.8); g = lerp(g, GRAVEL[1], 0.8); b = lerp(b, GRAVEL[2], 0.8); }
       const L = locs[k];
       if (L && L.civ) {
         const w = lw[k]; let c = DIRT, a = 0.5 * w;
@@ -116,7 +124,8 @@ export class Terrain {
     const group = new THREE.Group(); group.matrixAutoUpdate = false;
     const mesh = new THREE.Mesh(geo, M.terrain); mesh.matrixAutoUpdate = false; group.add(mesh);
     const shadowMesh = new THREE.Mesh(geo, M.shadow); shadowMesh.matrixAutoUpdate = false; shadowMesh.receiveShadow = true; shadowMesh.visible = false; shadowMesh.renderOrder = 1; group.add(shadowMesh);
-    const c = { cx, cz, H, group, shadowMesh, boxes: [], circles: [], inter: [], flora: [], forage: [], floraMesh: null, propList: [], ba, bt, bb, lw, nrmY };
+    this.riverMesh(group, rs, ox, oz);
+    const c = { cx, cz, H, group, shadowMesh, rs, boxes: [], circles: [], inter: [], flora: [], forage: [], floraMesh: null, propList: [], ba, bt, bb, lw, nrmY };
     this.chunks.set(ckey(cx, cz), c);
     this.genFlora(c, ox, oz);
     this.genStructures(c, locSet, ox, oz);
@@ -127,6 +136,22 @@ export class Terrain {
     return c;
   }
 
+  // water surface for any river running through the chunk
+  riverMesh(group, rs, ox, oz) {
+    const pos = [], uv = [], idx = [];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const ks = [j * V + i, j * V + i + 1, (j + 1) * V + i + 1, (j + 1) * V + i]; let sum = 0, n = 0;
+      for (const k of ks) if (rs[k] === rs[k]) { sum += rs[k]; n++; }
+      if (!n) continue;
+      const b = pos.length / 3;
+      ks.forEach((k, q) => { const x = ox + (i + (q === 1 || q === 2 ? 1 : 0)) * S, z = oz + (j + (q >= 2 ? 1 : 0)) * S; pos.push(x, rs[k] === rs[k] ? rs[k] : sum / n, z); uv.push(x / 8, z / 8); });
+      idx.push(b, b + 3, b + 1, b + 1, b + 3, b + 2);
+    }
+    if (!idx.length) return;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, M.river); m.matrixAutoUpdate = false; m.renderOrder = 2; group.add(m);
+  }
+
   genFlora(c, ox, oz) {
     const W = this.world, rng = new RNG(hash2(c.cx, c.cz, W.seed ^ 0xf107a));
     const at = (x, z) => clamp(Math.round((z - oz) / S), 0, N) * V + clamp(Math.round((x - ox) / S), 0, N);
@@ -135,6 +160,7 @@ export class Terrain {
       const b = r1 < c.bt[k] ? c.ba[k] : c.bb[k], set = FLORA_SETS[b];
       if (r2 > set.dens) continue;
       if (c.lw[k] > 0.03 && r3 > 0.04) continue;
+      if (c.rs[k] === c.rs[k]) continue; // not in a river
       const y = this.groundAt(x, z);
       if (y < -0.9 || (y < 0.1 && b !== B_SWAMP)) continue;
       if (c.nrmY[k] < 0.72) continue;
@@ -155,7 +181,7 @@ export class Terrain {
     for (let n = 0; n < cnt; n++) {
       const x = ox + rng.next() * CHUNK, z = oz + rng.next() * CHUNK, k = at(x, z), b = c.ba[k];
       const list = FORAGE[BIOMES[b].id], f = list[Math.floor(rng.next() * list.length)], sc = 0.9 + rng.next() * 0.3;
-      if (c.lw[k] > 0.03 || c.nrmY[k] < 0.7) continue;
+      if (c.lw[k] > 0.03 || c.nrmY[k] < 0.7 || c.rs[k] === c.rs[k]) continue;
       const y = this.groundAt(x, z); if (y < 0.05 && f[0] !== 'boglily') continue;
       if (b === B_MOUNT && y > 200) continue;
       c.forage.push({ kind: 'forage', id: c.cx + ',' + c.cz + ',' + n, x, y, z, ing: f[0], sprite: f[1], sc });
@@ -185,6 +211,24 @@ export class Terrain {
         c.propList.push([p.type, p.x, y, p.z, 1]);
         if (p.type === 'lamp') c.propList.push(['lampLit', p.x, y, p.z, 1, true]);
         if (p.solid) c.circles.push({ x: p.x, z: p.z, r: p.solid });
+      }
+    }
+    // bridges whose middle lies in this chunk
+    const seenB = new Set();
+    for (const gx of [0, CHUNK]) for (const gz of [0, CHUNK]) for (const br of this.world.bridgesNear(ox + gx, oz + gz) || []) {
+      if (seenB.has(br) || br.x < ox || br.x >= ox + CHUNK || br.z < oz || br.z >= oz + CHUNK) continue; seenB.add(br);
+      const Wd = get('wood'), St = get('stone'), ax = br.dx, az = br.dz, px = -br.dz, pz = br.dx, y = br.y, hl = br.half + 0.6;
+      const P = (u, v, yy) => [br.x + ax * u + px * v, yy, br.z + az * u + pz * v];
+      Wd.quad(P(-hl, 2.7, y), P(hl, 2.7, y), P(hl, -2.7, y), P(-hl, -2.7, y), hl / 2, 1.35, 1);
+      Wd.quad(P(-hl, 2.7, y - 0.45), P(hl, 2.7, y - 0.45), P(hl, -2.7, y - 0.45), P(-hl, -2.7, y - 0.45), hl / 2, 1.35, 0.5);
+      for (const s of [-1, 1]) {
+        Wd.quad(P(-hl, s * 2.7, y - 0.45), P(hl, s * 2.7, y - 0.45), P(hl, s * 2.7, y), P(-hl, s * 2.7, y), hl / 2, 0.12, 0.7);
+        Wd.quad(P(-hl, s * 2.6, y + 0.75), P(hl, s * 2.6, y + 0.75), P(hl, s * 2.6, y + 1), P(-hl, s * 2.6, y + 1), hl / 2, 0.08, 0.9);
+        for (let u = -hl; u <= hl + 0.01; u += (2 * hl) / Math.max(2, Math.round(hl / 2.5))) Wd.quad(P(u - 0.12, s * 2.6, y), P(u + 0.12, s * 2.6, y), P(u + 0.12, s * 2.6, y + 1), P(u - 0.12, s * 2.6, y + 1), 0.06, 0.25, 0.8);
+      }
+      for (const u of br.half > 12 ? [-br.half * 0.4, br.half * 0.4] : [0]) { // stone piers
+        St.quad(P(u - 0.7, 2.2, y - 6), P(u + 0.7, 2.2, y - 6), P(u + 0.7, 2.2, y - 0.45), P(u - 0.7, 2.2, y - 0.45), 0.35, 1.4); St.quad(P(u - 0.7, -2.2, y - 6), P(u + 0.7, -2.2, y - 6), P(u + 0.7, -2.2, y - 0.45), P(u - 0.7, -2.2, y - 0.45), 0.35, 1.4);
+        St.quad(P(u - 0.7, -2.2, y - 6), P(u - 0.7, 2.2, y - 6), P(u - 0.7, 2.2, y - 0.45), P(u - 0.7, -2.2, y - 0.45), 1.1, 1.4); St.quad(P(u + 0.7, -2.2, y - 6), P(u + 0.7, 2.2, y - 6), P(u + 0.7, 2.2, y - 0.45), P(u + 0.7, -2.2, y - 0.45), 1.1, 1.4);
       }
     }
     for (const [name, b] of buckets) { const m = b.mesh(M[name]); if (m) c.group.add(m); }

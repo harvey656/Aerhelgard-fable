@@ -31,7 +31,7 @@ UI.mainMenu = function () {
   G.mode = 'menu'; UI.close(true); $('hud').classList.add('hidden');
   const m = $('menu'); m.innerHTML = ''; m.classList.remove('hidden');
   const saves = G.fn.listSaves();
-  m.append(titleArt(), h('div', { class: 'mainmenu' }, h('h1', {}, 'Aerhelgard'), h('p', {}, 'A realm forty-eight kilometres across, born anew from every seed'),
+  m.append(titleArt(), h('div', { class: 'mainmenu' }, h('h1', {}, 'Aerhelgard'), h('p', {}, 'A realm of kingdoms, rivers and open sea, born anew from every seed'),
     h('button', { onclick: () => UI.create() }, 'New Game'),
     h('button', { disabled: saves.length ? null : '', onclick: () => UI.saves('load', true) }, 'Load Game'),
     h('button', { onclick: () => UI.help(true) }, 'Controls'),
@@ -41,7 +41,7 @@ UI.mainMenu = function () {
 // ----- character creation -----
 UI.create = function () {
   const r0 = new RNG((Math.random() * 1e9) | 0);
-  const st = { name: '', female: 0, skin: 2, hair: 2, hairStyle: 1, beard: 0, tunic: 0, abil: {}, skills: {}, seed: String(r0.int(100000, 999999)) };
+  const st = { name: '', female: 0, skin: 2, hair: 2, hairStyle: 1, beard: 0, tunic: 0, abil: {}, skills: {}, seed: String(r0.int(100000, 999999)), size: 48 };
   for (const a of ABILITIES) st.abil[a.id] = ABIL_START; for (const s of SKILLS) st.skills[s.id] = SKILL_START;
   const look = () => ({ skin: SKINS[st.skin], hair: HAIRS[st.hair], hairStyle: st.hairStyle, bald: st.hairStyle === 0 ? 1 : 0, beard: st.female ? 0 : st.beard, shirt: TUNICS[st.tunic], pants: '#4a3a2a', female: st.female, skirt: 0, build: st.female ? 0.95 : 1.05 });
   const aLeft = () => ABIL_POINTS - ABILITIES.reduce((n, a) => n + st.abil[a.id] - ABIL_START, 0), sLeft = () => SKILL_POINTS - SKILLS.reduce((n, s) => n + st.skills[s.id] - SKILL_START, 0);
@@ -53,19 +53,23 @@ UI.create = function () {
     const keepName = nameEl ? nameEl.value : st.name, keepSeed = seedEl ? seedEl.value : st.seed; st.name = keepName; st.seed = keepSeed;
     body.innerHTML = '';
     const L = look(), sheet = humanSheet(L, 'new' + JSON.stringify(L));
+    const places = (km) => Math.round(878 * (km / 48) ** 2), kings = (km) => Math.max(1, Math.round(4 * (km / 48) ** 2));
+    const sizeLbl = h('b', { style: 'font-weight:normal;color:#6a1a10' }, `${st.size} km across - about ${places(st.size)} places, ${kings(st.size)} kingdom${kings(st.size) > 1 ? 's' : ''}`);
+    const sizeEl = h('input', { type: 'range', min: 12, max: 72, step: 6, value: st.size, style: 'width:100%', oninput: (e) => { st.size = +e.target.value; sizeLbl.textContent = `${st.size} km across - about ${places(st.size)} places, ${kings(st.size)} kingdom${kings(st.size) > 1 ? 's' : ''}`; } });
     nameEl = h('input', { type: 'text', maxlength: 24, value: st.name, placeholder: 'Your name' }); seedEl = h('input', { type: 'text', maxlength: 12, value: st.seed, style: 'width:140px' });
     const id = h('div', { class: 'col parch', style: 'width:300px;padding:10px' },
       h('h3', {}, 'Identity'), h('div', { class: 'row' }, nameEl), h('button', { style: 'align-self:flex-start', onclick: () => { nameEl.value = personName(new RNG((Math.random() * 1e9) | 0), st.female); } }, 'Random name'),
       h('div', { class: 'row' }, h('div', { class: 'face', style: 'width:128px;height:192px;background:#3a4a5a' }, sheetFrameCanvas(sheet, 0, 4)), h('div', { class: 'col' }, h('button', { onclick: () => { st.female = st.female ? 0 : 1; draw(); } }, st.female ? 'Female' : 'Male'), h('button', { onclick: () => { st.hairStyle = (st.hairStyle + 1) % 6; draw(); } }, 'Hair: ' + HAIRSTYLES[st.hairStyle]), st.female ? null : h('button', { onclick: () => { st.beard = st.beard ? 0 : 1; draw(); } }, st.beard ? 'Bearded' : 'Shaven'))),
       'Skin', sw(SKINS, 'skin'), 'Hair', sw(HAIRS, 'hair'), 'Tunic', sw(TUNICS, 'tunic'),
-      h('div', { class: 'row', style: 'margin-top:6px' }, 'World seed', seedEl), h('div', { class: 'note' }, 'The same seed always creates the same world.'));
+      h('div', { class: 'row', style: 'margin-top:6px' }, 'World seed', seedEl),
+      h('div', { style: 'margin-top:4px' }, 'World size: ', sizeLbl), sizeEl, h('div', { class: 'note', style: 'white-space:normal' }, 'The same seed and size always create the same world. Larger worlds take longer to cross and hold more kingdoms.'));
     const ab = h('div', { class: 'col parch', style: 'width:290px;padding:10px' }, h('h3', {}, 'Abilities'), h('div', {}, 'Points left: ' + aLeft()));
     for (const a of ABILITIES) { const row = h('div', { class: 'kv' }, a.name, pm(() => st.abil[a.id], (n) => { st.abil[a.id] = Math.max(ABIL_START, st.abil[a.id] - n); }, (n) => { st.abil[a.id] = Math.min(ABIL_CREATE_MAX, st.abil[a.id] + Math.min(n, aLeft())); })); UI.tip(row, () => `<h4>${a.name}</h4>${a.desc}`); ab.append(row); }
     ab.append(h('div', { class: 'note', style: 'margin-top:8px;white-space:normal' }, 'Health ' + (30 + st.abil.wel * 10 + 5) + ' · Mana ' + (10 + st.abil.int * 10 + st.abil.wil * 3) + ' · Stamina ' + (50 + st.abil.wel * 8 + st.abil.wil * 6) + ' · Carry ' + st.abil.pow * 25 + ' lb'),
       h('div', { class: 'note', style: 'white-space:normal;margin-top:8px' }, 'Your starting gear follows your best skills: the weapon you favor, armor light or heavy, a bow, picks, a spell tome...'),
       h('div', { style: 'flex:1' }),
       h('button', { onclick: () => { for (const a of ABILITIES) st.abil[a.id] = ABIL_START; for (const s of SKILLS) st.skills[s.id] = SKILL_START; const r = new RNG((Math.random() * 1e9) | 0); while (aLeft() > 0) { const a = r.pick(ABILITIES).id; if (st.abil[a] < ABIL_CREATE_MAX) st.abil[a]++; } const fav = r.shuffle(SKILLS.map((s) => s.id)).slice(0, 6); while (sLeft() > 0) { const s = r.pick(fav); if (st.skills[s] < SKILL_CREATE_MAX) st.skills[s] += Math.min(5, sLeft()); } draw(); } }, 'Randomize stats'),
-      h('button', { style: 'font-size:26px;padding:6px', onclick: () => { if (aLeft() > 0 || sLeft() > 0) { if (!body.dataset.warn) { body.dataset.warn = 1; G.fn.sfx('deny'); warn.textContent = 'You still have points to spend. Click again to begin anyway.'; return; } } const name = nameEl.value.trim() || personName(new RNG((Math.random() * 1e9) | 0), st.female); G.fn.newGame({ name, look: look(), abil: st.abil, skills: st.skills, seed: /^\d+$/.test(seedEl.value) ? +seedEl.value : strSeed(seedEl.value || 'aerhelgard') }); } }, 'Begin your journey'));
+      h('button', { style: 'font-size:26px;padding:6px', onclick: () => { if (aLeft() > 0 || sLeft() > 0) { if (!body.dataset.warn) { body.dataset.warn = 1; G.fn.sfx('deny'); warn.textContent = 'You still have points to spend. Click again to begin anyway.'; return; } } const name = nameEl.value.trim() || personName(new RNG((Math.random() * 1e9) | 0), st.female); G.fn.newGame({ name, look: look(), abil: st.abil, skills: st.skills, size: st.size, seed: /^\d+$/.test(seedEl.value) ? +seedEl.value : strSeed(seedEl.value || 'aerhelgard') }); } }, 'Begin your journey'));
     const warn = h('div', { class: 'note', style: 'color:#a00' }); ab.append(warn);
     const sk = h('div', { class: 'col parch', style: 'flex:1;padding:10px;min-width:330px' }, h('h3', {}, 'Skills'), h('div', {}, 'Points left: ' + sLeft() + '   (Shift-click: 5)'));
     const list = h('div', { class: 'list' });

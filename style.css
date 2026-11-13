@@ -79,3 +79,4 @@ h1, h2, h3 { font-family: 'Pirata One', serif; font-weight: normal; margin: 0; l
 .swatch { width: 26px; height: 26px; border: 2px solid #000; cursor: pointer; display: inline-block; } .swatch.on { border-color: #fff; box-shadow: 0 0 0 2px #000; }
 .mapwrap { position: relative; } .mapwrap canvas { image-rendering: pixelated; display: block; cursor: grab; }
 .note { opacity: .75; font-size: 18px; }
+input[type=range] { accent-color: #a8782a; height: 22px; cursor: pointer; }

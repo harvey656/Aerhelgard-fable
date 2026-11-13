@@ -50,6 +50,7 @@ export function makeMaterials() {
   for (const k of ['plaster', 'stone', 'wood', 'sandstone', 'thatch', 'shingle', 'slate', 'flat', 'rock', 'door', 'dark']) M[k] = basic(T[k]);
   M.window = basic(T.window);
   M.water = new THREE.MeshBasicMaterial({ map: T.water, transparent: true, opacity: 0.78, depthWrite: false });
+  { const t = T.water.clone(); t.needsUpdate = true; M.river = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.8, depthWrite: false }); outdoor.push(M.river); }
   outdoor.push(M.terrain, M.plaster, M.stone, M.wood, M.sandstone, M.thatch, M.shingle, M.slate, M.flat, M.rock, M.door, M.dark, M.water);
   M.flora = billboardMat(T.flora); M.props = billboardMat(T.props);
   M.shadow = new THREE.ShadowMaterial({ opacity: 0.35, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });

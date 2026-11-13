@@ -39,7 +39,9 @@ Carry weight is 25 lb per point of Power (100 lb at Power 4).
 Items have weight, value, condition, material tier, quality and enchantments. Two-handed weapons, shields,
 dual wielding, torches, stacking, quick slots, item comparison, dropping, containers.
 
-**World.** A 48 × 48 km continent divided into large biome regions (forest, desert, plains, mountains,
+**World.** A continent (48 × 48 km by default; a slider at character creation sets it from 12 to 72 km)
+surrounded by sea with offshore islands, dotted with lakes and crossed by rivers that run from the high country
+to the coast. Wooden bridges stand wherever a road crosses a river. The land is divided into large biome regions (forest, desert, plains, mountains,
 swamp), each with its own palette, fog, lighting, flora, forage and monsters. Nearly 900 locations are placed
 with at least 650 m between their edges (typically about a kilometre to the nearest neighbour): farms (2–5 buildings), villages (5–15), towns (20–50), cities
 (100–500) and walled castle-cities (500–1000 around a great castle, four gates), plus crypts, caves, monster
