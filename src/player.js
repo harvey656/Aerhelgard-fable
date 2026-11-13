@@ -1,13 +1,13 @@
 // The player character: stats, progression, inventory, movement and combat.
 import * as THREE from '../vendor/three.module.min.js';
-import { ABILITIES, SKILLS, SKILL_BY_ID, SKILL_CAP, PERK_STEP, EFFECTS, SPELLS } from './data.js';
+import { ABILITIES, SKILLS, SKILL_BY_ID, SKILL_CAP, PERK_STEP, EFFECTS, SPELLS, SMITH_REQ } from './data.js';
 import { clamp, rnd } from './rng.js';
 import { G } from './state.js';
 import { HALF } from './world.js';
 import { itemWeight } from './items.js';
 
 export const EYE = 1.68, RADIUS = 0.38;
-const BUFF_STAT = { might: 'abil:pow', stone: 'ar', feather: 'carry' };
+const BUFF_STAT = { might: 'abil:pow', stone: 'ar', feather: 'carry', resist: 'resist' };
 
 export class Player {
   constructor(cfg = {}) {
@@ -118,16 +118,22 @@ export class Player {
     else if (fx === 'mana') this.mp = Math.min(this.maxMp(), this.mp + m);
     else if (fx === 'stam') this.st = Math.min(this.maxSt(), this.st + m);
     else if (fx === 'cure') { this.poison = 0; G.fn.msg('The poison leaves your blood.'); }
+    else if (fx === 'water') this.addBuff('waterwalk', 1, dur || EFFECTS.water.dur, 'Waterstride');
     else this.addBuff(fx, fx === 'might' ? Math.round(m) : m, dur || EFFECTS[fx].dur);
   }
   useItem(it) {
-    if (it.type === 'potion') { this.applyEffect(it.fx, it.mag); G.fn.msg('You drink the ' + it.name + '.'); G.fn.sfx('drink'); this.removeItem(it, 1); }
+    if (it.type === 'potion') { for (const [f, m] of [[it.fx, it.mag], ...(it.more || [])]) this.applyEffect(f, m, EFFECTS[f].dur ? EFFECTS[f].dur * (it.dm || 1) : 0); G.fn.msg('You drink the ' + it.name + '.'); G.fn.sfx('drink'); this.removeItem(it, 1); }
     else if (it.type === 'food' || (it.type === 'ingredient' && it.food)) { this.hp = Math.min(this.maxHp(), this.hp + it.food * 0.6); this.st = Math.min(this.maxSt(), this.st + it.food * 2); G.fn.msg('You eat the ' + it.name + '.'); G.fn.sfx('drink'); this.removeItem(it, 1); }
     else if (it.type === 'tome') {
       const S = SPELLS[it.spell];
       if (this.spells.includes(it.spell)) return G.fn.msg('You already know ' + S.name + '.');
       if (this.S(S.school) < S.lvl) return G.fn.msg('You need ' + SKILL_BY_ID[S.school].name + ' ' + S.lvl + ' to grasp this tome.', 'bad');
       this.spells.push(it.spell); if (!this.spell) this.spell = it.spell; this.removeItem(it, 1); G.fn.msg('You have learned ' + S.name + '! (B: spellbook, Q: cast)', 'good'); G.fn.sfx('level');
+    } else if (it.type === 'blueprint') {
+      const bp = G.save.bp, t = it.bp.startsWith('met:') ? +it.bp.slice(4) : 0;
+      if (bp[it.bp]) return G.fn.msg('You already know this.');
+      if (t && this.S('smithing') < Math.max(20, SMITH_REQ[t] - 10)) return G.fn.msg('You need Smithing ' + Math.max(20, SMITH_REQ[t] - 10) + ' to follow this treatise.', 'bad');
+      bp[it.bp] = 1; this.removeItem(it, 1); G.fn.msg('You study the ' + it.name.replace(/^\w+: /, '') + ' and commit it to memory.', 'good'); G.fn.sfx('level');
     } else if (it.slot) this.equipItem(it);
     else if (it.id === 'hammer') G.fn.openRepair(); else if (it.id === 'mortar') G.fn.openAlchemy();
   }

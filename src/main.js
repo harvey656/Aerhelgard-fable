@@ -15,12 +15,13 @@ import { NPC, Monster, updateEntities, clearEnts, shoot, aimEnemy, bolt, spawnLo
 import * as I from './items.js';
 import * as Q from './quests.js';
 import * as F from './factions.js';
+import { shopStock } from './dialog.js';
 import { UI, $ } from './ui.js';
 import './ui2.js';
 import { sfx, audio } from './audio.js';
 import { weaponCanvas } from './sprites.js';
 
-const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v4.save.', META_KEY = 'aerhelgard.v4.meta';
+const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v5.save.', META_KEY = 'aerhelgard.v5.meta';
 let renderer, scene, camera, fx, fxg, locked = false, hadLock = false, tickT = 0, target = null, last = 0;
 const mouse = { l: false, r: false }, input = { fwd: 0, strafe: 0, turn: 0, sprint: false, jump: false, attack: false, block: false };
 G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false, shadows: 1, clouds: true, view: 7 }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
@@ -118,7 +119,7 @@ function buildWorld(seed, size) {
   G.world = new World(seed, size); G.terrain = new Terrain(scene, G.world); G.terrain.outdoor = true; G.phys = G.terrain; G.outPos = null; G.popInit = false;
   setSkyVisible(true);
 }
-function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, titles: {} }; }
+function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, titles: {}, bp: {} }; }
 
 G.fn.newGame = async function (cfg) {
   G.loading = true; UI.close(true); $('menu').classList.add('hidden');
@@ -145,9 +146,15 @@ function startingKit(P) {
   if (s('heavy') > s('light')) { eq(I.mkArmor('heavy', 'body', 0)); if (s('heavy') >= 35) eq(I.mkArmor('heavy', 'head', 0)); } else { eq(I.mkArmor('light', 'body', 0)); eq(I.mkArmor('light', 'feet', 0)); if (s('light') >= 35) eq(I.mkArmor('light', 'legs', 0)); }
   if (s('shields') >= 30 && wk[0][0] !== 'archery') eq(I.mkShield('buckler', 0));
   if (s('lockpick') > 20) add(I.mkMisc('lockpick', 2 + Math.floor((s('lockpick') - 20) / 5)));
+  if (s('alchemy') >= 45) add(I.mkMisc('alembic'));
   if (s('alchemy') >= 30) { add(I.mkMisc('mortar')); add(I.mkIng('redcap', 3)); add(I.mkIng('blackberry', 3)); add(I.mkIng('bluebell', 2)); add(I.mkIng('moonpetal', 2)); }
-  if (s('smithing') >= 30) { add(I.mkMisc('hammer')); add(I.mkIngot(0, 4)); }
-  if (s('foraging') >= 30) add(I.mkMisc('pickaxe'));
+  if (s('smithing') >= 30) { add(I.mkMisc('hammer')); add(I.mkMisc('tongs')); add(I.mkIngot(0, 4)); }
+  if (s('foraging') >= 30) { add(I.mkMisc('sickle')); add(I.mkMisc('knife')); }
+  if (s('foraging') >= 40 || s('smithing') >= 40) add(I.mkMisc('pickaxe'));
+  // smithing knowledge: everyone knows the simplest patterns; training adds a few more, but never the better metals
+  const bp = G.save.bp; for (const k of ['dagger', 'handaxe', 'buckler', 'light:feet']) bp['pat:' + k] = 1;
+  if (s('smithing') >= 30) for (const k of ['shortsword', 'mace', 'light:body', 'heavy:head']) bp['pat:' + k] = 1;
+  if (s('smithing') >= 45) for (const k of ['longsword', 'spear', 'heavy:body', 'light:head', 'kite']) bp['pat:' + k] = 1;
   const magic = [['destruction', 'firebolt'], ['illusion', 'glimmer'], ['alteration', 'mend']].sort((a, b) => s(b[0]) - s(a[0]));
   for (const [sch, sp] of magic) if (s(sch) >= 30) { P.spells.push(sp); if (!P.spell) P.spell = sp; }
   if (s(magic[0][0]) >= 45) { const extra = { destruction: 'frostshard', illusion: 'dread', alteration: 'stoneskin' }[magic[0][0]]; P.spells.push(extra); }
@@ -169,7 +176,7 @@ function devStart(q) {
   G.fn.newGame({ name: 'Tester', seed: +q.get('dev') || 1, size: +q.get('size') || 48, abil: { wel: 6, pow: 6, int: 5, wil: 5, gui: 4 }, skills }).then(() => {
     const P = G.player; P.gold = 500;
     if (q.has('h')) G.time = +q.get('h') * 3600;
-    window.G = G; window.dev = { gen: (L, f) => genDungeon(G.world, L, f), enterLevel, leaveLevel, interact, I, Q, F, UI, Monster, lay: (L) => getLayout(G.world, L), cit: citizensOf, cz: (id) => citizenById(G.world, id), guildOf, faithOf, travel: (t) => G.fn.fastTravel(G.world.locs.find((l) => l.type === t), true) };
+    window.G = G; window.dev = { stock: shopStock, gen: (L, f) => genDungeon(G.world, L, f), enterLevel, leaveLevel, interact, I, Q, F, UI, Monster, lay: (L) => getLayout(G.world, L), cit: citizensOf, cz: (id) => citizenById(G.world, id), guildOf, faithOf, travel: (t) => G.fn.fastTravel(G.world.locs.find((l) => l.type === t), true) };
   });
 }
 
@@ -272,6 +279,7 @@ function interact() {
     case 'exit': if (G.space.kind === 'dungeon') G.fn.msg('You return to the open air.'); leaveLevel(); saveGame('auto', true); break;
     case 'stairs': enterLevel(genDungeon(G.world, G.space.loc, G.space.floor + t.dir), false); if (t.dir < 0) { const lv = G.space, f = lv.farthest; P.pos.set(lv.cx(f[0]), 0, lv.cx(f[1]) + 1.2); [P.pos.x, P.pos.z] = lv.collide(P.pos.x, P.pos.z, 0.4); } break;
     case 'forage': {
+      if (t.tool && !P.has((i) => i.id === 'sickle')) return G.fn.msg('You need a herbalist\'s sickle to harvest this cleanly. Traders and apothecaries sell them.', 'bad');
       let n = 1; if (P.perk('forageDouble')) n = 2; if (rnd.chance(P.perk('forageExtra'))) n++; if (rnd.chance((P.S('foraging') - 20) / 160)) n++;
       const it = I.mkIng(t.ing, n); P.addItem(it); P.gainXP('foraging', 5); S.harvested[t.id] = dayOf(); G.fn.msg('You gather ' + n + ' ' + it.name + '.'); sfx('pick');
       if (rnd.chance(P.perk('forageRare'))) { const r = I.mkIng(rnd.pick(['moonpetal', 'skyblossom', 'sunthorn', 'frostcap', 'leechwort']), 1); P.addItem(r); G.fn.msg('Your trained eye also spots some ' + r.name + '.', 'good'); }
@@ -279,7 +287,7 @@ function interact() {
     case 'ore': {
       if (!P.has((i) => i.id === 'pickaxe')) return G.fn.msg('You need a pickaxe to mine this vein.', 'bad');
       if (S.harvested[t.id] !== undefined && dayOf() - S.harvested[t.id] < 5) return G.fn.msg('This vein is spent for now.');
-      const n = 1 + (rnd.chance(0.3 + P.S('foraging') / 200) ? 1 : 0) + (P.perk('forageDouble') ? 1 : 0), it = I.mkOre(t.tier, n); P.addItem(it); S.harvested[t.id] = dayOf(); P.gainXP('foraging', 6 + t.tier * 2); P.st = Math.max(0, P.st - 12); sfx('forge'); G.fn.msg('You mine ' + n + ' ' + it.name + '.'); if (rnd.chance(0.06)) { P.addItem(I.mkMisc('gem', 1)); G.fn.msg('A gemstone glints in the rubble!', 'good'); } break; }
+      const n = 1 + (rnd.chance(0.3 + P.S('foraging') / 200) ? 1 : 0) + (P.perk('forageDouble') ? 1 : 0), it = t.coal ? I.mkMisc('coal', n + 1) : I.mkOre(t.tier, n); P.addItem(it); S.harvested[t.id] = dayOf(); P.gainXP('foraging', 5 + t.tier * 2); P.gainXP('smithing', 1.5 + t.tier); P.st = Math.max(0, P.st - 12); sfx('forge'); G.fn.msg('You mine ' + n + ' ' + it.name + '.'); if (rnd.chance(0.06)) { P.addItem(I.mkMisc('gem', 1)); G.fn.msg('A gemstone glints in the rubble!', 'good'); } break; }
     case 'shrine': {
       if (S.poi['s' + t.poi.id] === dayOf()) return G.fn.msg('The shrine is silent. Return another day.');
       S.poi['s' + t.poi.id] = dayOf(); const fx2 = ['regen', 'swift', 'stone', 'feather'][t.poi.seed % 4], E = EFFECTS[fx2];
@@ -295,7 +303,7 @@ function interact() {
       if (lv.b.type === 'inn') { if (t.guest && S.room && S.room.key === key && S.room.until > G.time) UI.rest(true); else G.fn.msg(t.guest ? 'Rent a room from the innkeeper first.' : 'This bed belongs to someone else.'); }
       else G.fn.msg('This bed belongs to someone else.'); break; }
     case 'forge': UI.forge(); break;
-    case 'alchemy': UI.alchemy(); break;
+    case 'alchemy': UI.alchemy(true); break;
     case 'board': UI.openQuestBoard({ c: citizensOf(G.space.loc, G.space.b)[0] }, G.space.loc, false); break;
   }
 }

@@ -12,6 +12,7 @@ const NOUN = ['Stag', 'Boar', 'Dragon', 'Tankard', 'Crown', 'Wolf', 'Lantern', '
 const DADJ = ['Forsaken', 'Sunken', 'Whispering', 'Bleak', 'Howling', 'Shattered', 'Forgotten', 'Weeping', 'Blighted', 'Silent', 'Ashen', 'Hollow', 'Drowned', 'Cursed', 'Gloom', 'Withered', 'Sundered', 'Lost', 'Dread', 'Moonlit', 'Bitter', 'Black', 'Frozen', 'Smoldering'];
 const DNOUN = {
   crypt: ['Crypt', 'Barrow', 'Tomb', 'Catacombs', 'Mausoleum', 'Ossuary'],
+  mine: ['Mine', 'Diggings', 'Workings', 'Pit', 'Shaft', 'Lode'],
   cave: ['Cavern', 'Grotto', 'Hollow', 'Caves', 'Delve', 'Burrows'],
   den: ['Den', 'Lair', 'Nest', 'Warren', 'Pit', 'Haunt'],
   ruin: ['Ruins', 'Halls', 'Sanctum', 'Bastion', 'Remnant', 'Citadel'],

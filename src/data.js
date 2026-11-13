@@ -151,51 +151,81 @@ export const EFFECTS = {
   night: { name: 'Night Eye', unit: '', base: 1, dur: 180, flat: true },
   feather: { name: 'Feather', unit: ' lb', base: 40, dur: 240 },
   cure: { name: 'Cure Poison', unit: '', base: 1, flat: true },
+  resist: { name: 'Resist Magic', unit: '% resistance', base: 18, dur: 120 },
+  water: { name: 'Waterstride', unit: '', base: 1, dur: 150, flat: true },
 };
 
-// Ingredients: two alchemical effects each. biome = where foraged; sprite = flora atlas index for wild plants
+// Ingredients. Each has up to three alchemical effects; how many of them you can draw out depends on your Alchemy skill.
+// Wild plants are unique to one biome.
 export const INGREDIENTS = {
-  redcap: { name: 'Redcap Mushroom', fx: ['heal', 'regen'], val: 4, w: 0.1, icon: 'mushroom', col: '#c8402c' },
+  // forest
+  redcap: { name: 'Redcap Mushroom', fx: ['heal', 'regen', 'stam'], val: 4, w: 0.1, icon: 'mushroom', col: '#c8402c' },
   blackberry: { name: 'Blackberries', fx: ['stam', 'heal'], val: 3, w: 0.1, icon: 'berry', col: '#4a2a6a', food: 4 },
-  fennroot: { name: 'Fennroot', fx: ['might', 'stam'], val: 6, w: 0.2, icon: 'root', col: '#b08a54' },
-  moonpetal: { name: 'Moonpetal', fx: ['mana', 'night'], val: 8, w: 0.1, icon: 'flower', col: '#b8c8f8' },
+  fennroot: { name: 'Fennroot', fx: ['might', 'stam', 'stone'], val: 6, w: 0.2, icon: 'root', col: '#b08a54' },
+  moonpetal: { name: 'Moonpetal', fx: ['mana', 'night', 'resist'], val: 8, w: 0.1, icon: 'flower', col: '#b8c8f8' },
+  ghostfern: { name: 'Ghostfern', fx: ['night', 'resist', 'feather'], val: 9, w: 0.1, icon: 'leaf', col: '#a8e0c8' },
+  honeycap: { name: 'Honeycap', fx: ['stam', 'regen', 'swift'], val: 6, w: 0.1, icon: 'mushroom', col: '#e0a830' },
+  elderberry: { name: 'Elderberries', fx: ['cure', 'heal', 'resist'], val: 5, w: 0.1, icon: 'berry', col: '#b02838', food: 3 },
+  // plains
   meadowsweet: { name: 'Meadowsweet', fx: ['heal', 'cure'], val: 4, w: 0.1, icon: 'flower', col: '#f4e8b8' },
   goldwheat: { name: 'Goldwheat', fx: ['stam', 'feather'], val: 3, w: 0.1, icon: 'leaf', col: '#e0b848' },
-  bluebell: { name: 'Bluebell', fx: ['mana', 'swift'], val: 5, w: 0.1, icon: 'flower', col: '#5878e0' },
-  cactusfruit: { name: 'Cactus Fruit', fx: ['stam', 'mana'], val: 5, w: 0.2, icon: 'berry', col: '#e04878', food: 5 },
+  bluebell: { name: 'Bluebell', fx: ['mana', 'swift', 'water'], val: 5, w: 0.1, icon: 'flower', col: '#5878e0' },
+  sunpetal: { name: 'Sunpetal', fx: ['might', 'heal', 'regen'], val: 7, w: 0.1, icon: 'flower', col: '#f0c830' },
+  prairiesage: { name: 'Prairie Sage', fx: ['mana', 'cure', 'resist'], val: 6, w: 0.1, icon: 'leaf', col: '#78a8a0' },
+  redclover: { name: 'Red Clover', fx: ['regen', 'stam', 'heal'], val: 4, w: 0.1, icon: 'flower', col: '#d84858' },
+  // desert
+  cactusfruit: { name: 'Cactus Fruit', fx: ['stam', 'mana', 'water'], val: 5, w: 0.2, icon: 'berry', col: '#e04878', food: 5 },
   sunthorn: { name: 'Sunthorn', fx: ['might', 'stone'], val: 9, w: 0.1, icon: 'leaf', col: '#d89030' },
   dustlily: { name: 'Dust Lily', fx: ['night', 'feather'], val: 8, w: 0.1, icon: 'flower', col: '#e8d8c0' },
-  frostcap: { name: 'Frostcap', fx: ['stone', 'mana'], val: 9, w: 0.1, icon: 'mushroom', col: '#a8d8f0' },
+  firebloom: { name: 'Firebloom', fx: ['might', 'swift', 'resist'], val: 11, w: 0.1, icon: 'flower', col: '#f05828' },
+  saltbush: { name: 'Saltbush', fx: ['feather', 'stam', 'cure'], val: 5, w: 0.1, icon: 'leaf', col: '#a8b890' },
+  mirageorchid: { name: 'Mirage Orchid', fx: ['mana', 'night', 'swift'], val: 13, w: 0.1, icon: 'flower', col: '#a868d8' },
+  // mountains
+  frostcap: { name: 'Frostcap', fx: ['stone', 'mana', 'resist'], val: 9, w: 0.1, icon: 'mushroom', col: '#a8d8f0' },
   skyblossom: { name: 'Skyblossom', fx: ['swift', 'feather'], val: 10, w: 0.1, icon: 'flower', col: '#f0a8d8' },
   ironmoss: { name: 'Ironmoss', fx: ['stone', 'might'], val: 8, w: 0.1, icon: 'leaf', col: '#5a7a6a' },
-  boglily: { name: 'Bog Lily', fx: ['cure', 'regen'], val: 6, w: 0.1, icon: 'flower', col: '#e8f0a0' },
+  cragroot: { name: 'Cragroot', fx: ['might', 'stone', 'regen'], val: 9, w: 0.2, icon: 'root', col: '#a86848' },
+  stormbell: { name: 'Stormbell', fx: ['swift', 'mana', 'resist'], val: 12, w: 0.1, icon: 'flower', col: '#8868e0' },
+  snowdrop: { name: 'Snowdrop', fx: ['heal', 'cure', 'feather'], val: 8, w: 0.1, icon: 'flower', col: '#f0f4f8' },
+  // swamp
+  boglily: { name: 'Bog Lily', fx: ['cure', 'regen', 'water'], val: 6, w: 0.1, icon: 'flower', col: '#e8f0a0' },
   marshcap: { name: 'Marshcap', fx: ['night', 'mana'], val: 6, w: 0.1, icon: 'mushroom', col: '#7a9a48' },
   leechwort: { name: 'Leechwort', fx: ['regen', 'heal'], val: 7, w: 0.1, icon: 'root', col: '#6a3a4a' },
+  witchcap: { name: 'Witchcap', fx: ['night', 'mana', 'resist'], val: 10, w: 0.1, icon: 'mushroom', col: '#8848b8' },
+  bloodreed: { name: 'Bloodreed', fx: ['heal', 'might', 'water'], val: 8, w: 0.1, icon: 'leaf', col: '#b83838' },
+  mirefern: { name: 'Mirefern', fx: ['cure', 'stone', 'water'], val: 7, w: 0.1, icon: 'leaf', col: '#4a8a58' },
   // monster parts
   pelt: { name: 'Beast Pelt', fx: [], val: 8, w: 2, icon: 'pelt', col: '#8a6a48' },
-  venom: { name: 'Venom Gland', fx: ['swift', 'cure'], val: 12, w: 0.2, icon: 'part', col: '#78c848' },
+  venom: { name: 'Venom Gland', fx: ['swift', 'cure', 'resist'], val: 12, w: 0.2, icon: 'part', col: '#78c848' },
   bonedust: { name: 'Bone Dust', fx: ['stone', 'night'], val: 7, w: 0.2, icon: 'part', col: '#e8e0d0' },
-  ectoplasm: { name: 'Ectoplasm', fx: ['mana', 'feather'], val: 18, w: 0.1, icon: 'part', col: '#a8f0e0' },
-  trollfat: { name: 'Troll Fat', fx: ['regen', 'might'], val: 22, w: 0.5, icon: 'part', col: '#d8d088' },
+  ectoplasm: { name: 'Ectoplasm', fx: ['mana', 'feather', 'resist'], val: 18, w: 0.1, icon: 'part', col: '#a8f0e0' },
+  trollfat: { name: 'Troll Fat', fx: ['regen', 'might', 'stone'], val: 22, w: 0.5, icon: 'part', col: '#d8d088' },
   batwing: { name: 'Bat Wing', fx: ['night', 'swift'], val: 5, w: 0.1, icon: 'part', col: '#4a3a3a' },
-  impheart: { name: 'Imp Heart', fx: ['mana', 'might'], val: 26, w: 0.2, icon: 'part', col: '#e83838' },
+  impheart: { name: 'Imp Heart', fx: ['mana', 'might', 'resist'], val: 26, w: 0.2, icon: 'part', col: '#e83838' },
   meat: { name: 'Raw Meat', fx: [], val: 3, w: 1, icon: 'meat', col: '#c85858', food: 8 },
 };
 
-// Wild forage nodes: [ingredient, flora sprite name]
+// Wild forage nodes per biome: [ingredient, flora sprite, needs a sickle?]. Berries, fungi and fruit can be picked by hand.
 export const FORAGE = {
-  forest: [['redcap', 'mushroom'], ['blackberry', 'berrybush'], ['fennroot', 'herb'], ['moonpetal', 'flowerW']],
-  plains: [['meadowsweet', 'flowerW'], ['goldwheat', 'wheat'], ['bluebell', 'flowerB']],
-  desert: [['cactusfruit', 'cactusfruit'], ['sunthorn', 'thorn'], ['dustlily', 'flowerW']],
-  mountains: [['frostcap', 'mushroomB'], ['skyblossom', 'flowerP'], ['ironmoss', 'moss']],
-  swamp: [['boglily', 'lily'], ['marshcap', 'mushroomG'], ['leechwort', 'herb']],
+  forest: [['redcap', 'mushroom', 0], ['blackberry', 'berrybush', 0], ['fennroot', 'herb', 1], ['moonpetal', 'flowerW', 1], ['ghostfern', 'fern', 1], ['honeycap', 'mushroomY', 0], ['elderberry', 'berryR', 0]],
+  plains: [['meadowsweet', 'flowerW', 1], ['goldwheat', 'wheat', 1], ['bluebell', 'flowerB', 1], ['sunpetal', 'flowerY', 1], ['prairiesage', 'herbB', 1], ['redclover', 'flowerR', 1]],
+  desert: [['cactusfruit', 'cactusfruit', 0], ['sunthorn', 'thorn', 1], ['dustlily', 'flowerW', 1], ['firebloom', 'flowerR', 1], ['saltbush', 'herbB', 1], ['mirageorchid', 'flowerV', 1]],
+  mountains: [['frostcap', 'mushroomB', 0], ['skyblossom', 'flowerP', 1], ['ironmoss', 'moss', 1], ['cragroot', 'herbR', 1], ['stormbell', 'flowerV', 1], ['snowdrop', 'flowerW', 1]],
+  swamp: [['boglily', 'lily', 1], ['marshcap', 'mushroomG', 0], ['leechwort', 'herb', 1], ['witchcap', 'mushroomP', 0], ['bloodreed', 'herbR', 1], ['mirefern', 'fern', 1]],
 };
 
 export const MISC = {
   lockpick: { name: 'Lockpick', type: 'tool', weight: 0.1, val: 6, stack: true, icon: 'lockpick', desc: 'For opening locks. May break.' },
-  hammer: { name: 'Smith\'s Hammer', type: 'tool', weight: 3, val: 30, icon: 'hammer', desc: 'Use to repair your gear anywhere. Needed for forging.' },
-  pickaxe: { name: 'Pickaxe', type: 'tool', weight: 6, val: 35, icon: 'pickaxe', desc: 'Needed to mine ore veins.' },
-  mortar: { name: 'Mortar & Pestle', type: 'tool', weight: 2, val: 40, icon: 'mortar', desc: 'Use to brew potions anywhere.' },
+  hammer: { name: 'Smith\'s Hammer', type: 'tool', weight: 3, val: 30, icon: 'hammer', desc: 'Smithing tool. Use it to make rough repairs anywhere. Forging also needs tongs and an anvil.' },
+  tongs: { name: 'Smith\'s Tongs', type: 'tool', weight: 2, val: 28, icon: 'tongs', desc: 'Smithing tool. Needed with a hammer to forge, temper or smelt at a smithy.' },
+  pickaxe: { name: 'Pickaxe', type: 'tool', weight: 6, val: 35, icon: 'pickaxe', desc: 'Mining tool. Needed to dig ore and coal from veins in mines, caves and mountainsides.' },
+  sickle: { name: 'Herbalist\'s Sickle', type: 'tool', weight: 1, val: 14, icon: 'sickle', desc: 'Foraging tool. Needed to harvest herbs, flowers and roots. Berries and fungi can be picked by hand.' },
+  knife: { name: 'Skinning Knife', type: 'tool', weight: 0.5, val: 16, icon: 'dagger', desc: 'Foraging tool. Needed to take pelts from slain beasts.' },
+  mortar: { name: 'Mortar & Pestle', type: 'tool', weight: 2, val: 40, icon: 'mortar', desc: 'Alchemy tool. Use it to brew potions anywhere. The essential piece of an alchemist\'s kit.' },
+  alembic: { name: 'Alembic', type: 'tool', weight: 3, val: 120, icon: 'alembic', desc: 'Alchemy tool. Potions you brew are 25% stronger while you carry it.' },
+  calcinator: { name: 'Calcinator', type: 'tool', weight: 4, val: 150, icon: 'calcinator', desc: 'Alchemy tool. Lasting potions you brew keep 40% longer while you carry it.' },
+  retort: { name: 'Retort', type: 'tool', weight: 2, val: 180, icon: 'retort', desc: 'Alchemy tool. Lets you blend a fourth ingredient, and gives a 25% chance of an extra potion.' },
+  coal: { name: 'Coal', type: 'mat', weight: 1, val: 4, stack: true, icon: 'ore', col: '#2a2a30', desc: 'Mined fuel. One lump is burned for each ingot of steel or better you smelt.' },
   torch: { name: 'Torch', type: 'torch', slot: 'lhand', weight: 1, val: 4, stack: true, icon: 'torch', desc: 'Hold in your left hand to light dark places.' },
   arrow: { name: 'Arrow', type: 'ammo', weight: 0.1, val: 1, stack: true, icon: 'arrow', desc: 'Ammunition for bows.' },
   bread: { name: 'Bread', type: 'food', weight: 0.5, val: 3, stack: true, icon: 'bread', food: 12, desc: 'Restores a little health and stamina.' },
@@ -275,19 +305,19 @@ export const B_FOREST = 0, B_DESERT = 1, B_PLAINS = 2, B_MOUNT = 3, B_SWAMP = 4;
 export const BIOMES = [
   { id: 'forest', name: 'Forest', ground: [0.23, 0.36, 0.16], ground2: [0.3, 0.28, 0.15], fog: [0.52, 0.62, 0.55], sky: [0.42, 0.58, 0.72], light: [1.0, 1.0, 0.94], fogFar: 300, civ: 0.55, map: '#35602a',
     wild: [['wolf', 5], ['boar', 4], ['spider', 3], ['bandit', 3], ['banditarcher', 2], ['bear', 2], ['goblin', 2]], night: [['wolf', 5], ['spider', 4], ['zombie', 1]],
-    dungeons: [['cave', 6], ['den', 1.5], ['crypt', 1], ['ruin', 1], ['tower', 0.5]] },
+    dungeons: [['cave', 6], ['den', 1.5], ['crypt', 1], ['ruin', 1], ['tower', 0.5], ['mine', 1.2]] },
   { id: 'desert', name: 'Desert', ground: [0.8, 0.68, 0.42], ground2: [0.72, 0.56, 0.34], fog: [0.88, 0.8, 0.62], sky: [0.5, 0.68, 0.86], light: [1.1, 1.04, 0.9], fogFar: 420, civ: 0.07, map: '#d6b76e',
     wild: [['jackal', 5], ['scorpion', 4], ['bandit', 2], ['wurm', 1.2]], night: [['scorpion', 4], ['mummy', 1.5], ['jackal', 3]],
-    dungeons: [['ruin', 5], ['tower', 4], ['crypt', 1]] },
+    dungeons: [['ruin', 5], ['tower', 4], ['crypt', 1], ['mine', 1.2]] },
   { id: 'plains', name: 'Plains', ground: [0.44, 0.52, 0.2], ground2: [0.56, 0.54, 0.24], fog: [0.66, 0.76, 0.84], sky: [0.46, 0.66, 0.9], light: [1.04, 1.04, 1.0], fogFar: 400, civ: 1.0, map: '#86a03c',
     wild: [['wolf', 4], ['rat', 3], ['bandit', 3], ['banditarcher', 2], ['goblin', 3], ['boar', 2]], night: [['wolf', 4], ['skeleton', 2], ['goblin', 3]],
-    dungeons: [['crypt', 5], ['tower', 4], ['ruin', 1]] },
+    dungeons: [['crypt', 5], ['tower', 4], ['ruin', 1], ['mine', 0.8]] },
   { id: 'mountains', name: 'Mountains', ground: [0.42, 0.42, 0.4], ground2: [0.36, 0.4, 0.3], fog: [0.72, 0.78, 0.86], sky: [0.5, 0.64, 0.84], light: [0.98, 1.0, 1.06], fogFar: 380, civ: 0, map: '#8c8a88',
     wild: [['icewolf', 4], ['harpy', 3], ['troll', 1.5], ['ogre', 1], ['goblin', 2]], night: [['icewolf', 4], ['troll', 2], ['harpy', 2]],
-    dungeons: [['cave', 8.5], ['den', 1], ['tower', 0.5]] },
+    dungeons: [['cave', 6], ['den', 1], ['tower', 0.5], ['mine', 5]] },
   { id: 'swamp', name: 'Swamp', ground: [0.22, 0.27, 0.15], ground2: [0.26, 0.22, 0.14], fog: [0.36, 0.44, 0.36], sky: [0.36, 0.46, 0.44], light: [0.8, 0.9, 0.8], fogFar: 170, civ: 0.3, map: '#48583a',
     wild: [['leech', 4], ['lurker', 2], ['wisp', 2], ['drowned', 2], ['spider', 2]], night: [['wisp', 4], ['drowned', 4], ['lurker', 2]],
-    dungeons: [['den', 7], ['ruin', 1.5], ['crypt', 1.5]] },
+    dungeons: [['den', 7], ['ruin', 1.5], ['crypt', 1.5], ['mine', 0.4]] },
 ];
 
 export const DUNGEONS = {
@@ -295,6 +325,7 @@ export const DUNGEONS = {
   cave: { name: 'Cave', mobs: [['bat', 4], ['spider', 4], ['goblin', 4], ['goblinshaman', 1.5], ['rat', 2], ['orc', 1], ['bear', 0.7]], boss: ['spiderqueen', 'direbear', 'orc'], gen: 'cave', floors: [1, 2] },
   den: { name: 'Monster Den', mobs: null, boss: null, gen: 'cave', floors: [1, 1] },
   ruin: { name: 'Ruin', mobs: [['bandit', 4], ['banditarcher', 3], ['scorpion', 2], ['mummy', 2], ['skeleton', 2], ['cultist', 1.5]], boss: ['banditchief', 'mummylord'], gen: 'rooms', floors: [1, 2] },
+  mine: { name: 'Mine', mobs: [['rat', 4], ['bat', 4], ['spider', 3], ['goblin', 4], ['goblinshaman', 1], ['orc', 1], ['golem', 0.5]], boss: ['orc', 'golem', 'spiderqueen'], gen: 'cave', floors: [2, 3] },
   tower: { name: 'Tower', mobs: [['cultist', 5], ['imp', 4], ['skeleton', 2], ['golem', 1], ['ghost', 1]], boss: ['archmage', 'lich'], gen: 'tower', floors: [3, 5] },
 };
 // Monster dens are stocked by biome
@@ -312,7 +343,7 @@ export const LOC_TYPES = {
   town: { name: 'Town', min: 20, max: 50, civ: true },
   city: { name: 'City', min: 100, max: 500, civ: true },
   castle: { name: 'Castle-City', min: 500, max: 1000, civ: true },
-  crypt: { name: 'Crypt' }, cave: { name: 'Cave' }, den: { name: 'Monster Den' }, ruin: { name: 'Ruin' }, tower: { name: 'Tower' },
+  mine: { name: 'Mine' }, crypt: { name: 'Crypt' }, cave: { name: 'Cave' }, den: { name: 'Monster Den' }, ruin: { name: 'Ruin' }, tower: { name: 'Tower' },
 };
 
 export const BUILDINGS = {
@@ -357,3 +388,14 @@ export const FAITHS = {
   hearth: { name: 'Hearth of the Mother', temple: 'Shrine of the Hearth-Mother', ranks: ['Stranger', 'Guest', 'Kindler', 'Hearthsworn', 'Warden of the Flame', 'Master of the Hearth'],
     ideal: 'The Mother teaches that no door should be barred to the hungry, and that a shared fire is the oldest law there is.', boon: ['physResist', 0.06, '6% less physical damage'] },
 };
+
+// ---------- Smithing knowledge ----------
+// To forge something you must know its pattern AND the working of its metal (or hide) tier.
+export const ORES = ['Iron Ore', 'Hematite', 'Silver Ore', 'Dusk Ore', 'Star Ore'];
+export const PATTERNS = {
+  dagger: 'Dagger', shortsword: 'Short Sword', longsword: 'Long Sword', claymore: 'Claymore', mace: 'Mace', warhammer: 'Warhammer', handaxe: 'Hand Axe', battleaxe: 'Battle Axe',
+  spear: 'Spear', halberd: 'Halberd', shortbow: 'Short Bow', longbow: 'Long Bow', buckler: 'Buckler', kite: 'Kite Shield', tower: 'Tower Shield',
+  'heavy:head': 'Helm', 'heavy:body': 'Cuirass', 'heavy:arms': 'Gauntlets', 'heavy:legs': 'Greaves', 'heavy:feet': 'Sabatons',
+  'light:head': 'Cap', 'light:body': 'Jerkin', 'light:arms': 'Bracers', 'light:legs': 'Leggings', 'light:feet': 'Boots',
+};
+export const TREATISES = [null, 'Steelworking', 'Silvering', 'Duskiron Forging', 'Starmetal Forging'];

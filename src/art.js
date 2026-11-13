@@ -191,6 +191,15 @@ const FLORA_DEFS = [
   ['cactusfruit', 1.8, 1.8, (p, r) => { p.blob(32, 46, 11, 17, [78, 134, 66], r); p.blob(17, 50, 7, 10, [70, 124, 60], r); p.blob(46, 48, 7, 11, [70, 124, 60], r); for (const [x, y] of [[32, 27], [16, 39], [47, 36], [38, 31]]) p.ell(x, y, 3, 3, [224, 72, 120]); }],
   ['thorn', 1.5, 1.2, (p, r) => { for (let i = 0; i < 12; i++) { const x = 32 + r.int(-22, 22), y = 63 - r.int(10, 30); p.line(32, 63, x, y, [150, 96, 44]); p.rect(x, y, 2, 2, [232, 160, 50]); } }],
   ['moss', 1.4, 0.6, (p, r) => { for (let i = 0; i < 7; i++) p.blob(32 + r.range(-18, 18), 58 - r.range(0, 5), r.range(5, 9), r.range(3, 5), sh([84, 126, 106], r.range(0.85, 1.15)), r, 0.25); }],
+  ['fern', 1.5, 1.1, (p, r) => { for (let i = 0; i < 7; i++) { const a = -2.6 + i * 0.36, len = r.int(20, 30); for (let t = 0; t < len; t++) { const x = 32 + Math.cos(a) * t, y = 62 + Math.sin(a) * t * 0.9; p.rect(x, y, 1, 1, [70, 150, 110]); if (t % 3 === 0) { p.rect(x - 2, y - 1, 5, 1, [110, 200, 160]); } } } }],
+  ['mushroomY', 1.1, 0.8, (p, r) => shroom(p, r, '#e0a830')],
+  ['mushroomP', 1.1, 0.8, (p, r) => shroom(p, r, '#8848b8')],
+  ['berryR', 2.4, 1.9, (p, r) => { for (let i = 0; i < 6; i++) p.blob(32 + r.range(-14, 14), 50 - r.range(0, 8), r.range(7, 11), r.range(6, 9), sh([44, 96, 52], r.range(0.9, 1.2)), r, 0.2); for (let i = 0; i < 16; i++) p.rect(r.int(16, 48), r.int(36, 56), 2, 2, [190, 40, 56]); }],
+  ['flowerY', 1.2, 1, (p, r) => flower(p, r, '#f0c830')],
+  ['flowerR', 1.2, 1, (p, r) => flower(p, r, '#e04838')],
+  ['flowerV', 1.2, 1, (p, r) => flower(p, r, '#9860d8')],
+  ['herbB', 1.2, 1, (p, r) => { for (let i = 0; i < 9; i++) { const x = 32 + r.int(-12, 12), h = r.int(10, 24); p.line(32, 63, x, 63 - h, [90, 140, 130]); p.ell(x, 63 - h, 3, 1.6, [130, 180, 170]); } }],
+  ['herbR', 1.2, 1, (p, r) => { for (let i = 0; i < 9; i++) { const x = 32 + r.int(-12, 12), h = r.int(10, 26); p.line(32, 63, x, 63 - h, [120, 60, 50]); p.ell(x, 63 - h, 3, 1.8, [190, 60, 60]); } }],
   ['lily', 1.4, 1, (p, r) => { p.blob(32, 58, 22, 5, [50, 100, 60], r); flower(p, r, '#e8f0a0', 3); }],
 ];
 const WOODC = [124, 88, 50], STONEC = [128, 126, 122], IRONC = [70, 70, 78];

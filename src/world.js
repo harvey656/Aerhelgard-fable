@@ -18,7 +18,7 @@ export function locRadius(type, count) {
   if (type === 'castle') return (Math.sqrt(cells) * 6 * 1.08 + 26) * 1.42 + 10;
   return Math.sqrt(cells * 144 / Math.PI) * 1.15 + 22;
 }
-const LOC_DUNGEON = { crypt: 1, cave: 1, den: 1, ruin: 1, tower: 1 };
+const LOC_DUNGEON = { crypt: 1, cave: 1, den: 1, ruin: 1, tower: 1, mine: 1 };
 
 export class World {
   constructor(seed, sizeKm = 48) {

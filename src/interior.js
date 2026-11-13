@@ -321,7 +321,7 @@ export function genDungeon(world, L, floor) {
   if (!last) { lv.addProp(up ? 'stairsUp' : 'stairsDown', lv.cx(far[0]), lv.cx(far[1]), { sc: 0.9, inter: { kind: 'stairs', dir: 1, label: up ? 'Ascend' : 'Descend' } }); lv.lights.push({ x: lv.cx(far[0]), z: lv.cx(far[1]), r: 8, v: 0.4 }); }
   stockDungeon(lv, rng, L, D, last);
   lv.bakeLight(0.3);
-  const mats = { crypt: ['floorstone', 'cryptwall', 'ceilstone'], ruin: ['floorstone', 'ruinwall', 'ceilstone'], cave: ['dirt', 'cavewall', 'cavewall'], den: ['dirt', 'cavewall', 'cavewall'], tower: ['floorwood', 'towerwall', 'ceil'] }[L.type];
+  const mats = { mine: ['dirt', 'cavewall', 'ceil'], crypt: ['floorstone', 'cryptwall', 'ceilstone'], ruin: ['floorstone', 'ruinwall', 'ceilstone'], cave: ['dirt', 'cavewall', 'cavewall'], den: ['dirt', 'cavewall', 'cavewall'], tower: ['floorwood', 'towerwall', 'ceil'] }[L.type];
   lv.build({ floor: [mats[0], 'floorstone', 'carpet', 'dirt'], wall: mats[1], ceil: mats[2] });
   return lv;
 }
@@ -417,7 +417,7 @@ function stockDungeon(lv, rng, L, D, last) {
   const table = (den ? den.mobs : D.mobs).filter((m) => MONSTERS[m[0]].lvl <= 3 + L.tier * 2.2);
   const far = (min) => { for (let t = 0; t < 80; t++) { const p = lv.randomFloor(rng); if (p && lv.dist[p[1] * W + p[0]] >= min) return p; } return null; };
   // decor & light
-  const deco = { crypt: ['urn', 'bones', 'coffin', 'web', 'candle'], ruin: ['pillar', 'rubble', 'urn', 'bones', 'web'], cave: ['bones', 'crystal', 'web', 'rubble'], den: ['bones', 'bones', 'rubble', 'web'], tower: ['shelf', 'candle', 'crate', 'cauldron', 'urn'] }[type];
+  const deco = { mine: ['crate', 'barrel', 'rubble', 'rubble', 'sack', 'cart'], crypt: ['urn', 'bones', 'coffin', 'web', 'candle'], ruin: ['pillar', 'rubble', 'urn', 'bones', 'web'], cave: ['bones', 'crystal', 'web', 'rubble'], den: ['bones', 'bones', 'rubble', 'web'], tower: ['shelf', 'candle', 'crate', 'cauldron', 'urn'] }[type];
   const area = lv.grid.reduce((a, v) => a + (v === FLOOR ? 1 : 0), 0);
   for (let i = 0; i < area / 14; i++) { const p = lv.randomFloor(rng); if (!p) continue; const name = rng.pick(deco); const wall = lv.at(p[0] - 1, p[1]) === WALL || lv.at(p[0] + 1, p[1]) === WALL || lv.at(p[0], p[1] - 1) === WALL || lv.at(p[0], p[1] + 1) === WALL; if (!wall && (name === 'shelf' || name === 'web' || name === 'coffin')) continue; lv.taken.add(p[1] * W + p[0]); lv.addProp(name, lv.cx(p[0]) + rng.range(-0.6, 0.6), lv.cx(p[1]) + rng.range(-0.6, 0.6), { solid: name === 'pillar' || name === 'coffin' || name === 'crate' ? 0.45 : 0, light: name === 'candle' || name === 'crystal' ? 7 : 0, lv: 0.45, y: name === 'web' ? 1.2 : 0 }); }
   for (let i = 0; i < area / 22; i++) { const p = lv.randomFloor(rng); if (!p) continue; let ox = 0, oz = 0; if (lv.at(p[0] - 1, p[1]) === WALL) ox = -1.38; else if (lv.at(p[0] + 1, p[1]) === WALL) ox = 1.38; else if (lv.at(p[0], p[1] - 1) === WALL) oz = -1.38; else if (lv.at(p[0], p[1] + 1) === WALL) oz = 1.38; else continue; lv.addProp('torch', lv.cx(p[0]) + ox, lv.cx(p[1]) + oz, { y: 1.3, light: 10, lv: 0.75 }); }
@@ -426,9 +426,15 @@ function stockDungeon(lv, rng, L, D, last) {
   const chest = (p, tierAdd, lock) => { if (!p) return; lv.taken.add(p[1] * W + p[0]); lv.addProp('chest', lv.cx(p[0]), lv.cx(p[1]), { solid: 0.5, inter: { kind: 'chest', id: 'd' + L.id + '_' + lv.floor + '_' + (ci++), tier: L.tier + tierAdd, lock, respawn: 14 } }); };
   for (let i = 0; i < rng.int(1, 3); i++) chest(far(8), 0, rng.chance(0.35) ? clamp(L.tier + rng.int(-1, 0), 1, 5) : 0);
   for (const r of lv.rooms) if (r.vault) { chest([r.x0 + 1, r.z0 + 1], 1, 0); const p = lv.randomFloor(rng, r); if (p) chest(p, 1, 0); }
-  if (type === 'cave' || type === 'den') for (let i = 0; i < rng.int(1, 4); i++) { const p = far(5); if (p) { lv.taken.add(p[1] * W + p[0]); lv.addProp('ore', lv.cx(p[0]), lv.cx(p[1]), { solid: 0.7, inter: { kind: 'ore', id: 'dore' + L.id + '_' + lv.floor + '_' + i, tier: clamp(L.tier - 1 + rng.int(-1, 1), 0, 4) } }); } }
+  // ore: a few veins in caves, many in mines - richer and deeper the further down you go
+  const veins = type === 'mine' ? rng.int(8, 12) + lv.floor * 2 : type === 'cave' || type === 'den' ? rng.int(1, 4) : 0;
+  for (let i = 0; i < veins; i++) {
+    const p = far(type === 'mine' ? 3 : 5); if (!p) continue;
+    const coal = rng.chance(type === 'mine' ? 0.28 : 0.15), tier = clamp(Math.round(L.tier - 1.4 + lv.floor * 0.7 + rng.range(-0.9, 0.7)), 0, 4);
+    lv.taken.add(p[1] * W + p[0]); lv.addProp('ore', lv.cx(p[0]), lv.cx(p[1]), { solid: 0.7, inter: { kind: 'ore', id: 'dore' + L.id + '_' + lv.floor + '_' + i, tier, coal } });
+  }
   // monsters
-  const count = Math.min(20, Math.round(area / (type === 'tower' ? 18 : 42) + L.tier * 0.8 + rng.range(0, 2)));
+  const count = Math.min(type === 'mine' ? 9 : 20, Math.round(area / (type === 'tower' ? 18 : type === 'mine' ? 70 : 42) + L.tier * 0.8 + rng.range(0, 2)));
   for (let i = 0; i < count; i++) { const p = far(6); if (!p || !table.length) continue; const id = rng.weighted(table); if (!killed.includes(i)) lv.mobs.push({ id, x: lv.cx(p[0]), z: lv.cx(p[1]), idx: i }); }
   const fb = lv.farthest;
   if (last) {

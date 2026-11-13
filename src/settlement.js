@@ -170,14 +170,15 @@ function genDungeonSite(world, L) {
   const lay = { loc: L, buildings: [], walls: [], props: [], guards: [], gates: [] };
   const t = L.type;
   const a = rng.int(0, 3), nx = [0, 1, 0, -1][a], nz = [1, 0, -1, 0][a];
-  const dims = { crypt: [6, 7.5, 3.6], cave: [11, 11, 5.5], den: [9, 9, 3.8], ruin: [7, 7, 3], tower: [10, 10, 30] }[t];
-  const b = mkBuilding(lay, 'dungeon', L.x, L.z, dims[0], dims[1], dims[2], nx, nz, { dtype: t, wall: t === 'ruin' ? 3 : 1, roof: t === 'tower' ? 'cone' : t === 'cave' || t === 'den' ? 'mound' : t === 'ruin' ? 'none' : 'flat', roofTex: 'slate' });
+  const dims = { crypt: [6, 7.5, 3.6], mine: [10, 10, 4.6], cave: [11, 11, 5.5], den: [9, 9, 3.8], ruin: [7, 7, 3], tower: [10, 10, 30] }[t];
+  const b = mkBuilding(lay, 'dungeon', L.x, L.z, dims[0], dims[1], dims[2], nx, nz, { dtype: t, wall: t === 'ruin' ? 3 : 1, roof: t === 'tower' ? 'cone' : t === 'cave' || t === 'den' || t === 'mine' ? 'mound' : t === 'ruin' ? 'none' : 'flat', roofTex: 'slate' });
   b.name = L.name;
-  if (t === 'cave' || t === 'den') { b.door.x += nx * 1.2; b.door.z += nz * 1.2; }
+  if (t === 'cave' || t === 'den' || t === 'mine') { b.door.x += nx * 1.2; b.door.z += nz * 1.2; }
   const scatter = (type, n, r0, r1, solid) => { for (let i = 0; i < n; i++) { const an = rng.range(0, 6.283), d = rng.range(r0, r1); lay.props.push({ type, x: L.x + Math.cos(an) * d, z: L.z + Math.sin(an) * d, solid }); } };
   if (t === 'crypt') scatter('tomb', 9, 7, 20, 0.4);
   if (t === 'den') scatter('bones', 7, 6, 16, 0);
   if (t === 'cave') scatter('rockprop', 5, 8, 16, 1.2);
+  if (t === 'mine') { scatter('cart', 2, 8, 13, 1.2); scatter('crate', 3, 7, 14, 0.6); scatter('barrel', 2, 7, 14, 0.5); scatter('rockprop', 2, 10, 16, 1.2); }
   if (t === 'ruin') { scatter('pillar', 8, 6, 18, 0.6); scatter('rubble', 5, 5, 16, 0); }
   if (t === 'tower') scatter('rubble', 3, 8, 14, 0);
   return lay;

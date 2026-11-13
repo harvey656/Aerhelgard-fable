@@ -1,5 +1,6 @@
 // Item construction, naming, loot generation.
-import { WEAPONS, SHIELDS, ARMOR_SLOTS, METALS, HIDES, TIER_COL, HIDE_COL, TIER_DMG, TIER_VAL, EFFECTS, INGREDIENTS, MISC, SPELLS, ABILITIES, SKILLS } from './data.js';
+import { WEAPONS, SHIELDS, ARMOR_SLOTS, METALS, HIDES, TIER_COL, HIDE_COL, TIER_DMG, TIER_VAL, EFFECTS, INGREDIENTS, MISC, SPELLS, ABILITIES, SKILLS, ORES, PATTERNS, TREATISES, SMITH_REQ } from './data.js';
+import { G } from './state.js';
 import { rnd, clamp } from './rng.js';
 
 const QUAL = ['', 'Fine ', 'Superior ', 'Masterwork '];
@@ -51,15 +52,29 @@ export function mkJewel(slot, rng, power) {
   if (power > 0.55 && rng.chance(0.35)) { const e = rollEnch(rng, power * 0.7); if (e.stat !== it.ench[0].stat) { it.ench.push({ stat: e.stat, amt: e.amt }); it.val += Math.round(e._v); } }
   return it;
 }
-export function mkPotion(fx, mag, qty = 1) {
-  const E = EFFECTS[fx], m = E.flat ? 1 : Math.max(E.int ? 1 : 0.1, E.int ? Math.round(mag) : Math.round(mag * 10) / 10);
-  return { type: 'potion', fx, mag: m, name: 'Potion of ' + E.name, weight: 0.4, val: Math.round(18 + (E.flat ? 20 : (m / E.base) * 22) + (E.dur ? 12 : 0)), stack: true, qty, icon: 'potion', sk: 'p:' + fx + ':' + m,
-    col: { heal: '#e04848', mana: '#4878e8', stam: '#58c858', regen: '#e888a8', might: '#e89038', swift: '#e8e058', stone: '#a8a8a8', night: '#8858d8', feather: '#d8f0f8', cure: '#78d8c8' }[fx] };
+const PCOL = { heal: '#e04848', mana: '#4878e8', stam: '#58c858', regen: '#e888a8', might: '#e89038', swift: '#e8e058', stone: '#a8a8a8', night: '#8858d8', feather: '#d8f0f8', cure: '#78d8c8', resist: '#c878e8', water: '#58b8d8' };
+const pmag = (fx, mag) => { const E = EFFECTS[fx]; return E.flat ? 1 : Math.max(E.int ? 1 : 0.1, E.int ? Math.round(mag) : Math.round(mag * 10) / 10); };
+// A potion has a main effect and, when brewed from ingredients sharing several effects, extra ones: extras = [[fx, mag], ...]. dm scales durations.
+export function mkPotion(fx, mag, qty = 1, extras = [], dm = 1) {
+  const E = EFFECTS[fx], m = pmag(fx, mag), more = extras.map(([f, g]) => [f, pmag(f, g)]);
+  let val = 18 + (E.flat ? 20 : (m / E.base) * 22) + (E.dur ? 12 * dm : 0); for (const [f, g] of more) val += 10 + (EFFECTS[f].flat ? 14 : (g / EFFECTS[f].base) * 16);
+  const it = { type: 'potion', fx, mag: m, name: 'Potion of ' + E.name + (more.length ? ' & ' + EFFECTS[more[0][0]].name.replace('Restore ', '').replace('Fortify ', '') + (more.length > 1 ? ' +' + (more.length - 1) : '') : ''), weight: 0.4, val: Math.round(val), stack: true, qty, icon: 'potion',
+    sk: 'p:' + fx + ':' + m + more.map(([f, g]) => '+' + f + ':' + g).join('') + (dm !== 1 ? '*' + dm : ''), col: PCOL[fx] };
+  if (more.length) it.more = more; if (dm !== 1) it.dm = dm;
+  return it;
 }
+// how many of an ingredient's effects the player can draw out
+export function knownFx(id) { const sk = G.player ? G.player.S('alchemy') : 20; return INGREDIENTS[id].fx.slice(0, 1 + (sk >= 30 ? 1 : 0) + (sk >= 55 ? 1 : 0)); }
+export function mkBlueprint(key) {
+  const [k, id] = [key.slice(0, 3), key.slice(4)];
+  if (k === 'met') { const t = +id; return { type: 'blueprint', bp: key, name: 'Treatise: ' + TREATISES[t], weight: 1, val: [0, 320, 850, 2100, 5000][t], icon: 'scroll', col: TIER_COL[t], desc: 'Teaches the working of ' + METALS[t].toLowerCase() + ' and ' + HIDES[t].toLowerCase() + ' gear. Needs Smithing ' + Math.max(20, SMITH_REQ[t] - 10) + ' to follow. Read to learn.' }; }
+  return { type: 'blueprint', bp: key, name: 'Blueprint: ' + PATTERNS[id], weight: 0.3, val: 55 + (id.length * 7) % 60, icon: 'scroll', col: '#3a4a8a', desc: 'The pattern for forging a ' + PATTERNS[id].toLowerCase() + ' in any metal you know how to work. Read to learn.' };
+}
+export function randomBlueprint(rng, tier = 1) { if (rng.chance(0.14 + tier * 0.04)) return mkBlueprint('met:' + clamp(Math.round(tier - 0.3 + rng.range(-0.8, 0.8)), 1, 4)); return mkBlueprint('pat:' + rng.pick(Object.keys(PATTERNS))); }
 export function mkIng(id, qty = 1) { const I = INGREDIENTS[id]; return { type: 'ingredient', id, name: I.name, weight: I.w, val: I.val, stack: true, qty, icon: I.icon, col: I.col, sk: 'i:' + id, food: I.food }; }
 export function mkMisc(id, qty = 1) { const I = MISC[id]; const it = Object.assign({ id, qty, col: '#b8c0cc' }, I); if (I.stack) it.sk = 'm:' + id; else delete it.qty; return it; }
 export function mkIngot(tier, qty = 1) { return { type: 'mat', mat: 'ingot', tier, name: METALS[tier] + ' Ingot', weight: 1, val: Math.round(9 * TIER_VAL[tier]), stack: true, qty, icon: 'ingot', col: TIER_COL[tier], sk: 'ingot:' + tier }; }
-export function mkOre(tier, qty = 1) { return { type: 'mat', mat: 'ore', tier, name: METALS[tier] + ' Ore', weight: 1.5, val: Math.round(3 * TIER_VAL[tier]), stack: true, qty, icon: 'ore', col: TIER_COL[tier], sk: 'ore:' + tier }; }
+export function mkOre(tier, qty = 1) { return { type: 'mat', mat: 'ore', tier, name: ORES[tier], weight: 1.5, val: Math.round(3 * TIER_VAL[tier]), stack: true, qty, icon: 'ore', col: TIER_COL[tier], sk: 'ore:' + tier }; }
 export function mkTome(id) { const S = SPELLS[id]; return { type: 'tome', spell: id, name: 'Tome: ' + S.name, weight: 1, val: S.val, icon: 'tome', col: { destruction: '#a83828', illusion: '#6848a8', alteration: '#388868' }[S.school] }; }
 
 export function itemWeight(it) { return it.weight * (it.qty || 1); }
@@ -89,6 +104,7 @@ export function rollLoot(entries, rng, tier) {
     else if (key === 'potion') out.items.push(randomPotion(rng, 1 + tier * 0.15));
     else if (key === 'tome') out.items.push(randomTome(rng, 30 + tier * 20));
     else if (key === 'ore') out.items.push(mkOre(clamp(tier - 1, 0, 4), n));
+    else if (key === 'blueprint') out.items.push(randomBlueprint(rng, tier));
     else if (INGREDIENTS[key]) out.items.push(mkIng(key, n));
     else if (MISC[key]) out.items.push(mkMisc(key, n));
   }
@@ -104,7 +120,8 @@ export function chestLoot(rng, tier, goldMult = 1) {
     else if (r < 0.66) out.items.push(mkJewel(rng.pick(['ring', 'ring', 'amulet', 'belt']), rng, 0.25 + tier * 0.15));
     else if (r < 0.74) out.items.push(mkMisc('gem', 1));
     else if (r < 0.82) out.items.push(mkMisc('lockpick', rng.int(1, 3)));
-    else if (r < 0.9) out.items.push(mkIngot(clamp(Math.round(tier - 1 + rng.range(-0.5, 0.5)), 0, 4), rng.int(1, 3)));
+    else if (r < 0.87) out.items.push(mkIngot(clamp(Math.round(tier - 1 + rng.range(-0.5, 0.5)), 0, 4), rng.int(1, 3)));
+    else if (r < 0.92) out.items.push(randomBlueprint(rng, tier));
     else if (r < 0.95) out.items.push(randomTome(rng, 30 + tier * 18));
     else out.items.push(mkMisc('arrow', rng.int(8, 20)));
   }
@@ -117,8 +134,8 @@ export function describe(it) {
   if (it.type === 'weapon') { L.push('Damage ' + it.dmg + (it.hands === 2 ? '  (two-handed)' : '')); L.push((it.bow ? 'Draw ' : 'Speed ') + it.speed.toFixed(2) + (it.bow ? '' : '   Reach ' + it.reach.toFixed(1) + 'm')); L.push('Skill: ' + SKILLS.find((s) => s.id === it.skill).name); }
   if (it.type === 'armor') { L.push('Armor ' + it.ar); L.push(it.cls === 'heavy' ? 'Heavy Armor' : 'Light Armor'); }
   if (it.type === 'shield') { L.push('Blocks ' + Math.round(it.block * 100) + '%   Armor ' + it.ar); }
-  if (it.type === 'potion') { const E = EFFECTS[it.fx]; L.push(E.flat ? E.name : (E.name + ': ' + it.mag + E.unit) + (E.dur ? ' for ' + E.dur + 's' : '')); }
-  if (it.type === 'ingredient') { const I = INGREDIENTS[it.id]; if (I.fx.length) L.push('Effects: ' + I.fx.map((f) => EFFECTS[f].name).join(', ')); if (I.food) L.push('Edible'); }
+  if (it.type === 'potion') for (const [f, m] of [[it.fx, it.mag], ...(it.more || [])]) { const E = EFFECTS[f]; L.push((E.flat ? E.name : E.name + ': ' + m + E.unit) + (E.dur ? ' for ' + Math.round(E.dur * (it.dm || 1)) + 's' : '')); }
+  if (it.type === 'ingredient') { const I = INGREDIENTS[it.id]; if (I.fx.length) { const kn = knownFx(it.id); L.push('Effects: ' + I.fx.map((f, i) => (i < kn.length ? EFFECTS[f].name : '???')).join(', ')); if (kn.length < I.fx.length) L.push('(More Alchemy skill reveals hidden effects)'); } if (I.food) L.push('Edible'); }
   if (it.type === 'tome') { const S = SPELLS[it.spell]; L.push(S.desc); L.push(SKILLS.find((s) => s.id === S.school).name + ' ' + S.lvl + ' required. Read to learn.'); }
   if (it.desc) L.push(it.desc);
   if (it.ench) for (const e of it.ench) L.push('* ' + enchLabel(e));

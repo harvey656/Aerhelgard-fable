@@ -1,5 +1,5 @@
 // Menus and task windows: main menu, character creation, saving, crafting, lock-picking, resting.
-import { ABILITIES, SKILLS, ABIL_START, ABIL_POINTS, ABIL_CREATE_MAX, SKILL_START, SKILL_POINTS, SKILL_CREATE_MAX, PERK_STEP, WEAPONS, SHIELDS, ARMOR_SLOTS, METALS, HIDES, SMITH_REQ, INGREDIENTS, EFFECTS } from './data.js';
+import { ABILITIES, SKILLS, ABIL_START, ABIL_POINTS, ABIL_CREATE_MAX, SKILL_START, SKILL_POINTS, SKILL_CREATE_MAX, PERK_STEP, WEAPONS, SHIELDS, ARMOR_SLOTS, METALS, HIDES, SMITH_REQ, INGREDIENTS, EFFECTS, ORES, PATTERNS, TREATISES } from './data.js';
 import { G, dayOf, hourOf } from './state.js';
 import { UI, h, $ } from './ui.js';
 import { Pix } from './art.js';
@@ -165,70 +165,97 @@ UI.lockpick = function (lock, onOpen) {
 };
 
 // ----- smithing -----
+// Forging needs: a hammer and tongs, an anvil (a smithy), the item's pattern, and the treatise for its metal.
 function recipes() {
   const out = [];
   for (let t = 0; t < 5; t++) {
-    for (const k in WEAPONS) out.push({ name: I.mkWeapon(k, t).name, tier: t, ing: WEAPONS[k].ingots, lea: WEAPONS[k].bow ? 1 : 0, make: (q) => I.mkWeapon(k, t, q), cat: 'Weapons' });
-    for (const k in SHIELDS) out.push({ name: I.mkShield(k, t).name, tier: t, ing: SHIELDS[k].ingots, lea: 0, make: (q) => I.mkShield(k, t, q), cat: 'Armor' });
-    for (const s in ARMOR_SLOTS) { out.push({ name: I.mkArmor('heavy', s, t).name, tier: t, ing: ARMOR_SLOTS[s].ingots, lea: 0, make: (q) => I.mkArmor('heavy', s, t, q), cat: 'Armor' }); out.push({ name: I.mkArmor('light', s, t).name, tier: t, ing: t > 0 ? 1 : 0, lea: ARMOR_SLOTS[s].ingots, make: (q) => I.mkArmor('light', s, t, q), cat: 'Armor' }); }
+    for (const k in WEAPONS) out.push({ pat: k, name: I.mkWeapon(k, t).name, tier: t, ing: WEAPONS[k].ingots, lea: WEAPONS[k].bow ? 1 : 0, make: (q) => I.mkWeapon(k, t, q) });
+    for (const k in SHIELDS) out.push({ pat: k, name: I.mkShield(k, t).name, tier: t, ing: SHIELDS[k].ingots, lea: 0, make: (q) => I.mkShield(k, t, q) });
+    for (const sl in ARMOR_SLOTS) { out.push({ pat: 'heavy:' + sl, name: I.mkArmor('heavy', sl, t).name, tier: t, ing: ARMOR_SLOTS[sl].ingots, lea: 0, make: (q) => I.mkArmor('heavy', sl, t, q) }); out.push({ pat: 'light:' + sl, name: I.mkArmor('light', sl, t).name, tier: t, ing: t > 0 ? 1 : 0, lea: ARMOR_SLOTS[sl].ingots, make: (q) => I.mkArmor('light', sl, t, q) }); }
   }
   return out;
 }
+const knowsMetal = (t) => t === 0 || !!G.save.bp['met:' + t];
 UI.forge = function () {
   const P = G.player, body = h('div', {}); let tab = 0, tier = 0;
-  const ingots = (t) => P.count('ingot:' + t), lea = () => P.count('m:leather');
+  const ingots = (t) => P.count('ingot:' + t), lea = () => P.count('m:leather'), has = (id) => !!P.has((i) => i.id === id);
   const draw = () => {
-    body.innerHTML = ''; const S = P.S('smithing'), hasH = !!P.has((i) => i.id === 'hammer');
-    const tabs = h('div', { class: 'tabs' }, ['Forge', 'Smelt', 'Temper', 'Repair'].map((n, i) => h('button', { class: tab === i ? 'on' : '', onclick: () => { tab = i; draw(); } }, n)));
-    const list = h('div', { class: 'list parch', style: 'width:620px;height:46vh' });
-    if (!hasH && tab !== 1) list.append(h('div', { style: 'padding:8px;color:#a00' }, 'You need a Smith\'s Hammer. Smiths and traders sell them.'));
+    body.innerHTML = ''; const S = P.S('smithing'), tools = has('hammer') && has('tongs'), bp = G.save.bp;
+    const tabs = h('div', { class: 'tabs' }, ['Forge', 'Smelt', 'Temper', 'Repair', 'Knowledge'].map((n, i) => h('button', { class: tab === i ? 'on' : '', onclick: () => { tab = i; draw(); } }, n)));
+    const list = h('div', { class: 'list parch', style: 'width:660px;height:48vh' });
+    if (!tools && tab < 3) list.append(h('div', { style: 'padding:8px;color:#a00;white-space:normal' }, 'You need both a Smith\'s Hammer and Smith\'s Tongs to work at the anvil.' + (has('hammer') ? '' : ' You have no hammer.') + (has('tongs') ? '' : ' You have no tongs.') + ' Smiths sell them.'));
     if (tab === 0) {
-      list.append(h('div', { class: 'tabs', style: 'margin-bottom:4px' }, METALS.map((m, t) => h('button', { class: tier === t ? 'on' : '', onclick: () => { tier = t; draw(); } }, m + ' / ' + HIDES[t]))));
-      if (S < SMITH_REQ[tier]) list.append(h('div', { style: 'padding:8px;color:#a00' }, 'Requires Smithing ' + SMITH_REQ[tier] + '.'));
-      for (const r of recipes().filter((x) => x.tier === tier)) {
-        const ok = hasH && S >= SMITH_REQ[tier] && ingots(tier) >= r.ing && lea() >= r.lea;
-        const row = h('div', { class: 'item' + (ok ? '' : ' dim'), onclick: () => { if (!ok) return G.fn.sfx('deny'); const save = rnd.chance(P.perk('forgeSave')); if (r.ing) P.consume('ingot:' + tier, Math.max(save ? r.ing - 1 : r.ing, 0)); if (r.lea) P.consume('m:leather', r.lea); const it = r.make(Math.min(3, P.perk('forgeQ'))); P.addItem(it); P.gainXP('smithing', 6 + (r.ing + r.lea) * 3 + tier * 5); G.fn.msg('You forge a ' + it.name + '.' + (save ? ' (An ingot saved.)' : ''), 'good'); G.fn.sfx('forge'); draw(); } }, h('span', { class: 'n' }, r.name), h('span', { class: 'q', style: 'width:230px' }, (r.ing ? r.ing + ' ' + METALS[tier] + ' ingot' + (r.ing > 1 ? 's' : '') : '') + (r.ing && r.lea ? ', ' : '') + (r.lea ? r.lea + ' leather' : '')));
-        list.append(row);
+      list.append(h('div', { class: 'tabs', style: 'margin-bottom:4px' }, METALS.map((m, t) => h('button', { class: (tier === t ? 'on' : ''), style: knowsMetal(t) ? '' : 'opacity:.5', onclick: () => { tier = t; draw(); } }, m + ' / ' + HIDES[t]))));
+      if (!knowsMetal(tier)) list.append(h('div', { style: 'padding:8px;color:#a00;white-space:normal' }, 'You do not know how to work ' + METALS[tier].toLowerCase() + '. Study the Treatise: ' + TREATISES[tier] + (tier < 4 ? ' - the best smiths sell copies, and they turn up in old hoards.' : ' - no smith will sell it. It must be found.')));
+      else if (S < SMITH_REQ[tier]) list.append(h('div', { style: 'padding:8px;color:#a00' }, 'Requires Smithing ' + SMITH_REQ[tier] + '.'));
+      const rs = recipes().filter((x) => x.tier === tier), known = rs.filter((r) => bp['pat:' + r.pat]), unknown = rs.filter((r) => !bp['pat:' + r.pat]);
+      for (const r of known) {
+        const ok = tools && knowsMetal(tier) && S >= SMITH_REQ[tier] && ingots(tier) >= r.ing && lea() >= r.lea;
+        list.append(h('div', { class: 'item' + (ok ? '' : ' dim'), onclick: () => { if (!ok) return G.fn.sfx('deny'); const save = r.ing > 1 && rnd.chance(P.perk('forgeSave')); if (r.ing) P.consume('ingot:' + tier, save ? r.ing - 1 : r.ing); if (r.lea) P.consume('m:leather', r.lea); const it = r.make(Math.min(3, P.perk('forgeQ'))); P.addItem(it); P.gainXP('smithing', 6 + (r.ing + r.lea) * 3 + tier * 6); G.fn.msg('You forge a ' + it.name + '.' + (save ? ' (An ingot saved.)' : ''), 'good'); G.fn.sfx('forge'); draw(); } },
+          h('span', { class: 'n' }, r.name), h('span', { class: 'q', style: 'width:250px' }, (r.ing ? r.ing + ' ' + METALS[tier] + ' ingot' + (r.ing > 1 ? 's' : '') : '') + (r.ing && r.lea ? ', ' : '') + (r.lea ? r.lea + ' leather' : ''))));
       }
+      if (unknown.length) list.append(h('div', { class: 'note', style: 'padding:6px 4px;white-space:normal' }, 'Patterns you have not learned: ' + [...new Set(unknown.map((r) => PATTERNS[r.pat]))].join(', ') + '. Find or buy their blueprints.'));
     } else if (tab === 1) {
-      for (let t = 0; t < 5; t++) { const n = P.count('ore:' + t); if (!n) continue; list.append(h('div', { class: 'item' + (n >= 2 ? '' : ' dim'), onclick: () => { if (n < 2) return; P.consume('ore:' + t, 2); P.addItem(I.mkIngot(t, 1)); P.gainXP('smithing', 3 + t * 2); G.fn.sfx('forge'); draw(); } }, h('img', { src: itemIcon('ore', I.mkOre(t).col) }), h('span', { class: 'n' }, 'Smelt 2 ' + METALS[t] + ' Ore into 1 Ingot'), h('span', { class: 'q' }, 'have ' + n))); }
-      if (!list.children.length) list.append(h('div', { style: 'padding:8px' }, 'You carry no ore. Mine veins in caves and on mountainsides with a pickaxe, or convert pelts below.'));
+      list.append(h('div', { class: 'note', style: 'padding:4px;white-space:normal' }, 'Two lumps of ore make one ingot. Anything finer than iron also burns a lump of coal. Coal on hand: ' + P.count('m:coal') + '.'));
+      let any = false;
+      for (let t = 0; t < 5; t++) { const n = P.count('ore:' + t); if (!n) continue; any = true; const ok = has('tongs') && n >= 2 && (t === 0 || P.count('m:coal') >= 1) && knowsMetal(t);
+        list.append(h('div', { class: 'item' + (ok ? '' : ' dim'), onclick: () => { if (!ok) return G.fn.sfx('deny'); P.consume('ore:' + t, 2); if (t > 0) P.consume('m:coal', 1); P.addItem(I.mkIngot(t, 1)); P.gainXP('smithing', 3 + t * 3); G.fn.sfx('forge'); draw(); } }, h('img', { src: itemIcon('ore', I.mkOre(t).col) }), h('span', { class: 'n' }, 'Smelt 2 ' + ORES[t] + (t ? ' + 1 Coal' : '') + ' into 1 ' + METALS[t] + ' Ingot'), h('span', { class: 'q', style: 'width:200px' }, knowsMetal(t) ? 'have ' + n : 'needs ' + TREATISES[t]))); }
+      if (!any) list.append(h('div', { style: 'padding:8px;white-space:normal' }, 'You carry no ore. Dig it with a pickaxe from veins in mines, caves and on mountainsides. The deeper the mine, the finer the metal.'));
       const pelts = P.count('i:pelt'); if (pelts) list.append(h('div', { class: 'item', onclick: () => { P.consume('i:pelt', 1); P.addItem(I.mkMisc('leather', 1)); P.gainXP('smithing', 2); draw(); } }, h('span', { class: 'n' }, 'Cure a Beast Pelt into Leather'), h('span', { class: 'q' }, 'have ' + pelts)));
     } else if (tab === 2) {
       const c = P.inv.filter((i) => (i.type === 'weapon' || i.type === 'armor' || i.type === 'shield') && (i.q || 0) < 3);
       if (!c.length) list.append(h('div', { style: 'padding:8px' }, 'Nothing to temper.'));
-      for (const it of c) { const q = (it.q || 0) + 1, need = SMITH_REQ[it.tier] + q * 12, mat = it.cls === 'light' ? 'm:leather' : 'ingot:' + it.tier, ok = hasH && S >= need && P.count(mat) >= 1;
-        list.append(h('div', { class: 'item' + (ok ? '' : ' dim'), onclick: () => { if (!ok) return G.fn.sfx('deny'); P.consume(mat, 1); const eq = P.isEquipped(it), n = it.type === 'weapon' ? I.mkWeapon(it.kind, it.tier, q) : it.type === 'shield' ? I.mkShield(it.kind, it.tier, q) : I.mkArmor(it.cls, it.slot, it.tier, q); const suffix = it.ench ? it.name.slice(it.name.indexOf(' of ')) : ''; Object.assign(it, { name: n.name + suffix, dmg: n.dmg, ar: n.ar, q, val: n.val + (it.ench ? Math.round(it.val * 0.3) : 0), cond: 100 }); P.gainXP('smithing', 8 + it.tier * 5 + q * 4); G.fn.msg('Tempered: ' + it.name, 'good'); G.fn.sfx('forge'); draw(); } }, h('img', { src: itemIcon(it.icon, it.col) }), h('span', { class: 'n' }, it.name + ' → ' + ['', 'Fine', 'Superior', 'Masterwork'][q]), h('span', { class: 'q', style: 'width:230px' }, 'Smithing ' + need + ', 1 ' + (it.cls === 'light' ? 'leather' : METALS[it.tier] + ' ingot')))); }
-    } else repairList(list, draw);
-    body.append(h('div', { class: 'col' }, tabs, list, h('div', { class: 'note' }, 'Smithing ' + S + ' · ingots: ' + METALS.map((m, t) => ingots(t) ? m + ' ' + ingots(t) : null).filter(Boolean).join(', ') + ' · leather ' + lea())));
+      for (const it of c) { const q = (it.q || 0) + 1, need = SMITH_REQ[it.tier] + q * 12, mat = it.cls === 'light' ? 'm:leather' : 'ingot:' + it.tier, ok = tools && knowsMetal(it.tier) && S >= need && P.count(mat) >= 1;
+        list.append(h('div', { class: 'item' + (ok ? '' : ' dim'), onclick: () => { if (!ok) return G.fn.sfx('deny'); P.consume(mat, 1); const n = it.type === 'weapon' ? I.mkWeapon(it.kind, it.tier, q) : it.type === 'shield' ? I.mkShield(it.kind, it.tier, q) : I.mkArmor(it.cls, it.slot, it.tier, q); const suffix = it.ench ? it.name.slice(it.name.indexOf(' of ')) : ''; Object.assign(it, { name: n.name + suffix, dmg: n.dmg, ar: n.ar, q, val: n.val + (it.ench ? Math.round(it.val * 0.3) : 0), cond: 100 }); P.gainXP('smithing', 8 + it.tier * 5 + q * 4); G.fn.msg('Tempered: ' + it.name, 'good'); G.fn.sfx('forge'); draw(); } }, h('img', { src: itemIcon(it.icon, it.col) }), h('span', { class: 'n' }, it.name + ' → ' + ['', 'Fine', 'Superior', 'Masterwork'][q]), h('span', { class: 'q', style: 'width:250px' }, (knowsMetal(it.tier) ? 'Smithing ' + need : TREATISES[it.tier]) + ', 1 ' + (it.cls === 'light' ? 'leather' : METALS[it.tier] + ' ingot')))); }
+    } else if (tab === 3) repairList(list, draw, true);
+    else {
+      list.append(h('div', { style: 'padding:6px;white-space:normal' }, h('b', { style: 'font-weight:normal;color:#6a1a10' }, 'Metals you can work: '), METALS.filter((m, t) => knowsMetal(t)).join(', ') + '.'), h('div', { style: 'padding:6px;white-space:normal' }, h('b', { style: 'font-weight:normal;color:#6a1a10' }, 'Patterns you know: '), Object.keys(PATTERNS).filter((k) => bp['pat:' + k]).map((k) => PATTERNS[k]).join(', ') || 'none'),
+        h('div', { style: 'padding:6px;white-space:normal' }, h('b', { style: 'font-weight:normal;color:#6a1a10' }, 'Still to learn: '), (Object.keys(PATTERNS).filter((k) => !bp['pat:' + k]).map((k) => PATTERNS[k]).concat(TREATISES.filter((t, i) => t && !knowsMetal(i)).map((t) => 'Treatise: ' + t))).join(', ') || 'nothing - you have mastered the craft'),
+        h('div', { class: 'note', style: 'padding:6px;white-space:normal' }, 'Blueprints and treatises are read from your inventory. Smiths sell a few patterns and the treatise for the best metal they work themselves; the rest come from chests, mines and the hoards of dungeon masters.'));
+    }
+    body.append(h('div', { class: 'col' }, tabs, list, h('div', { class: 'note' }, 'Smithing ' + S + ' · ingots: ' + (METALS.map((m, t) => ingots(t) ? m + ' ' + ingots(t) : null).filter(Boolean).join(', ') || 'none') + ' · leather ' + lea() + ' · coal ' + P.count('m:coal'))));
   };
   draw(); UI.window('Forge & Anvil', body, { name: 'forge' });
 };
-function repairList(list, draw) {
-  const P = G.player, S = P.S('smithing'), cap = Math.min(100, Math.round((45 + S * 0.6) * (1 + P.perk('repairAmt'))));
+function repairList(list, draw, anvil) {
+  const P = G.player, S = P.S('smithing'), cap = Math.min(100, Math.round((45 + S * 0.6) * (1 + P.perk('repairAmt'))) - (anvil ? 0 : 20));
   const worn = P.inv.filter((i) => i.cond !== undefined && i.cond < cap);
-  list.append(h('div', { class: 'note', style: 'padding:4px' }, 'With your skill you can restore gear to ' + cap + '% condition.'));
-  if (!P.has((i) => i.id === 'hammer')) return;
+  list.append(h('div', { class: 'note', style: 'padding:4px;white-space:normal' }, (anvil ? 'At an anvil' : 'In the field, with only a hammer,') + ' you can restore gear to ' + cap + '% condition.' + (anvil ? '' : ' A proper anvil allows better work.')));
+  if (!P.has((i) => i.id === 'hammer')) { list.append(h('div', { style: 'padding:8px;color:#a00' }, 'You need a Smith\'s Hammer.')); return; }
   if (!worn.length) list.append(h('div', { style: 'padding:8px' }, 'Nothing you can improve.'));
   for (const it of worn) list.append(h('div', { class: 'item', onclick: () => { P.gainXP('smithing', 1.5 + (cap - it.cond) * 0.08); it.cond = cap; G.fn.sfx('forge'); draw(); } }, h('img', { src: itemIcon(it.icon, it.col) }), h('span', { class: 'n' }, it.name), h('span', { class: 'q' }, Math.round(it.cond) + '% → ' + cap + '%')));
 }
-UI.repair = function () { const body = h('div', {}), list = h('div', { class: 'list parch', style: 'width:560px;height:44vh' }); const draw = () => { list.innerHTML = ''; repairList(list, draw); }; draw(); body.append(list); UI.window('Repair', body, { name: 'repair' }); };
+UI.repair = function () { const body = h('div', {}), list = h('div', { class: 'list parch', style: 'width:560px;height:44vh' }); const draw = () => { list.innerHTML = ''; repairList(list, draw, false); }; draw(); body.append(list); UI.window('Field Repairs', body, { name: 'repair' }); };
 
 // ----- alchemy -----
-UI.alchemy = function () {
+// Brew from two to four ingredients. Every effect that at least two of them share (and that you know how to draw out) goes into the potion.
+UI.alchemy = function (station) {
   const P = G.player, body = h('div', {}); let pick = [];
+  const has = (id) => station || !!P.has((i) => i.id === id);
+  if (!has('mortar')) return G.fn.msg('You need a Mortar & Pestle to brew.', 'bad');
   const draw = () => {
     body.innerHTML = ''; pick = pick.filter((id) => P.count('i:' + id) > 0);
-    const list = h('div', { class: 'list parch', style: 'width:520px;height:46vh' });
+    const max = has('retort') ? 4 : 3, S = P.S('alchemy');
+    const list = h('div', { class: 'list parch', style: 'width:560px;height:48vh' });
     const ings = P.inv.filter((i) => i.type === 'ingredient' && INGREDIENTS[i.id].fx.length).sort((a, b) => a.name.localeCompare(b.name));
-    if (!ings.length) list.append(h('div', { style: 'padding:8px;white-space:normal' }, 'You carry no alchemical ingredients. Gather plants and fungi in the wild, or harvest parts from monsters.'));
-    for (const it of ings) list.append(h('div', { class: 'item' + (pick.includes(it.id) ? ' sel' : ''), onclick: () => { if (pick.includes(it.id)) pick = pick.filter((x) => x !== it.id); else if (pick.length < 3) pick.push(it.id); draw(); } }, h('img', { src: itemIcon(it.icon, it.col) }), h('span', { class: 'n' }, it.name + ' (' + it.qty + ')'), h('span', { class: 'q', style: 'width:230px' }, INGREDIENTS[it.id].fx.map((f) => EFFECTS[f].name.replace('Restore ', '').replace('Fortify ', '')).join(', '))));
-    const cnt = {}; for (const id of pick) for (const f of INGREDIENTS[id].fx) cnt[f] = (cnt[f] || 0) + 1;
+    if (!ings.length) list.append(h('div', { style: 'padding:8px;white-space:normal' }, 'You carry no alchemical ingredients. Every biome has its own plants and fungi - a sickle is needed for most - and many monsters yield useful parts.'));
+    const cnt = {}; for (const id of pick) for (const f of I.knownFx(id)) cnt[f] = (cnt[f] || 0) + 1;
+    for (const it of ings) {
+      const kn = I.knownFx(it.id), all = INGREDIENTS[it.id].fx, match = pick.length && !pick.includes(it.id) && kn.some((f) => cnt[f]);
+      list.append(h('div', { class: 'item' + (pick.includes(it.id) ? ' sel' : ''), onclick: () => { if (pick.includes(it.id)) pick = pick.filter((x) => x !== it.id); else if (pick.length < max) pick.push(it.id); else G.fn.sfx('deny'); draw(); } }, h('img', { src: itemIcon(it.icon, it.col) }), h('span', { class: 'n', style: match ? 'color:#1a5a1a' : '' }, it.name + ' (' + it.qty + ')'),
+        h('span', { class: 'q', style: 'width:280px' }, all.map((f, i) => (i < kn.length ? EFFECTS[f].name.replace('Restore ', '').replace('Fortify ', '') : '???')).join(', '))));
+    }
     const shared = Object.keys(cnt).filter((f) => cnt[f] >= 2).sort((a, b) => cnt[b] - cnt[a]);
-    const S = P.S('alchemy'), mag = (f) => EFFECTS[f].base * (0.55 + S / 75) * (1 + (P.A('int') - 4) * 0.05) * (1 + P.perk('brewMag')) * (cnt[f] >= 3 ? 1.3 : 1);
-    const res = h('div', { class: 'parch', style: 'padding:8px 10px;width:280px;white-space:normal' }, h('div', {}, 'Mixture: ' + (pick.map((id) => INGREDIENTS[id].name).join(' + ') || '-')), h('div', { style: 'margin:8px 0' }, pick.length < 2 ? 'Choose two or three ingredients that share an effect.' : shared.length ? 'Result: ' + I.mkPotion(shared[0], mag(shared[0])).name + ' (' + I.describe(I.mkPotion(shared[0], mag(shared[0])))[0] + ')' : 'These share no effect - the brew would be worthless.'),
-      h('button', { disabled: shared.length ? null : '', onclick: () => { for (const id of pick) P.consume('i:' + id, 1); const n = rnd.chance(P.perk('brewDouble')) ? 2 : 1; P.addItem(I.mkPotion(shared[0], mag(shared[0]), n)); P.gainXP('alchemy', 7 + pick.length * 2); G.fn.msg('You brew ' + (n > 1 ? 'two ' : 'a ') + I.mkPotion(shared[0], 1).name + '.', 'good'); G.fn.sfx('drink'); draw(); } }, 'Brew'), h('div', { class: 'note', style: 'margin-top:8px' }, 'Alchemy ' + S));
+    const mag = (f, k) => EFFECTS[f].base * (0.55 + S / 75) * (1 + (P.A('int') - 4) * 0.05) * (1 + P.perk('brewMag')) * (has('alembic') ? 1.25 : 1) * (cnt[f] >= 3 ? 1.25 : 1) * (k ? 0.8 : 1);
+    const make = (n) => I.mkPotion(shared[0], mag(shared[0], 0), n, shared.slice(1).map((f, k) => [f, mag(f, k + 1)]), has('calcinator') ? 1.4 : 1);
+    const tools = [['mortar', 'Mortar & Pestle'], ['alembic', 'Alembic (+25% strength)'], ['calcinator', 'Calcinator (+40% duration)'], ['retort', 'Retort (4th ingredient, bonus potion)']];
+    const res = h('div', { class: 'parch', style: 'padding:8px 10px;width:300px;white-space:normal;overflow-y:auto' },
+      h('div', {}, 'Mixture (' + pick.length + '/' + max + '): ' + (pick.map((id) => INGREDIENTS[id].name).join(' + ') || '-')),
+      h('div', { style: 'margin:8px 0' }, pick.length < 2 ? 'Choose ingredients that share an effect. Names turn green when they match your mixture.' : shared.length ? h('span', {}, 'Result: ', h('b', { style: 'font-weight:normal;color:#6a1a10' }, make(1).name), h('br'), I.describe(make(1)).slice(0, shared.length).join('; ')) : 'These share no effect you know how to draw out - the brew would be worthless.'),
+      h('button', { disabled: shared.length ? null : '', onclick: () => { for (const id of pick) P.consume('i:' + id, 1); const n = 1 + (rnd.chance(P.perk('brewDouble')) ? 1 : 0) + (has('retort') && rnd.chance(0.25) ? 1 : 0), it = make(n); P.addItem(it); P.gainXP('alchemy', 5 + shared.length * 4 + pick.length * 2); G.fn.msg('You brew ' + (n > 1 ? n + ' ' : 'a ') + it.name + '.', 'good'); G.fn.sfx('drink'); draw(); } }, 'Brew'),
+      h('div', { class: 'note', style: 'margin-top:10px' }, 'Alchemy ' + S + ' - you can draw out ' + (S >= 55 ? 'all three effects' : S >= 30 ? 'two effects (three at 55)' : 'one effect (two at 30)') + ' of each ingredient.'),
+      h('div', { class: 'note', style: 'margin-top:8px' }, station ? 'A full apothecary\'s bench: every tool is to hand.' : 'Your kit:'), station ? null : tools.map(([id, label]) => h('div', { class: 'note', style: has(id) ? 'opacity:1;color:#1a5a1a' : '' }, (has(id) ? '✔ ' : '· ') + label)));
     body.append(list, res);
   };
-  draw(); UI.window('Alchemy', body, { name: 'alchemy' });
+  draw(); UI.window(station ? 'Alchemy Bench' : 'Alchemy', body, { name: 'alchemy' });
 };

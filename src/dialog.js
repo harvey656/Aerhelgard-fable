@@ -1,6 +1,6 @@
 // Conversations with citizens, shop stock and prices.
 import { RNG, hash2, rnd, clamp } from './rng.js';
-import { BIOMES, BUILDINGS, LOC_TYPES, SKILLS, SKILL_BY_ID, SPELLS, WEAPONS, SHIELDS, ARMOR_SLOTS, INGREDIENTS, FORAGE, MONSTERS, SKILL_CAP } from './data.js';
+import { BIOMES, BUILDINGS, LOC_TYPES, SKILLS, SKILL_BY_ID, SPELLS, WEAPONS, SHIELDS, ARMOR_SLOTS, INGREDIENTS, FORAGE, MONSTERS, SKILL_CAP, PATTERNS } from './data.js';
 import { G, dayOf, hourOf, isNight } from './state.js';
 import { getLayout, citizensOf } from './settlement.js';
 import * as Q from './quests.js';
@@ -20,8 +20,8 @@ export function sellPrice(it, c) { const P = G.player; return Math.max(it.val > 
 export function wants(type, it) {
   if (it.type === 'quest') return false;
   if (type === 'trader') return true;
-  if (type === 'smithy') return ['weapon', 'armor', 'shield', 'ammo'].includes(it.type) || it.mat || it.id === 'hammer' || it.id === 'pickaxe' || it.id === 'leather';
-  if (type === 'alchemist') return it.type === 'potion' || it.type === 'ingredient' || it.id === 'mortar';
+  if (type === 'smithy') return ['weapon', 'armor', 'shield', 'ammo'].includes(it.type) || it.mat || it.type === 'blueprint' || ['hammer', 'pickaxe', 'tongs', 'leather', 'coal'].includes(it.id);
+  if (type === 'alchemist') return it.type === 'potion' || it.type === 'ingredient' || ['mortar', 'alembic', 'calcinator', 'retort', 'sickle'].includes(it.id);
   if (type === 'arcanist') return it.type === 'tome' || it.type === 'jewel' || it.type === 'potion' || it.id === 'gem' || !!it.ench;
   if (type === 'inn') return it.type === 'food' || (it.type === 'ingredient' && it.food);
   return false;
@@ -37,18 +37,22 @@ export function shopStock(L, b) {
     for (let i = 0; i < 7 + sz * 2; i++) add(I.mkWeapon(rng.pick(Object.keys(WEAPONS)), rng.chance(0.7) ? base : Math.max(0, base - 1)));
     for (let i = 0; i < 6 + sz * 2; i++) add(I.mkArmor(rng.chance(0.6) ? 'heavy' : 'light', rng.pick(Object.keys(ARMOR_SLOTS)), rng.chance(0.7) ? base : Math.max(0, base - 1)));
     for (let i = 0; i < 2; i++) add(I.mkShield(rng.pick(Object.keys(SHIELDS)), base));
-    add(I.mkMisc('hammer')); add(I.mkMisc('pickaxe')); add(I.mkMisc('arrow', rng.int(30, 80)));
-    if (rng.chance(0.75)) add(I.mkIngot(Math.max(0, base - 1), rng.int(3, 8))); if (rng.chance(0.5)) add(I.mkIngot(base, rng.int(1, 4))); if (rng.chance(0.5)) add(I.mkOre(Math.max(0, base - 1), rng.int(2, 8)));
+    add(I.mkMisc('hammer')); add(I.mkMisc('tongs')); add(I.mkMisc('pickaxe')); add(I.mkMisc('arrow', rng.int(30, 80)));
+    // raw materials: iron is common, steel scarce, anything better must be mined
+    add(I.mkIngot(0, rng.int(3, 8))); add(I.mkOre(0, rng.int(2, 6))); add(I.mkMisc('coal', rng.int(3, 9))); if (sz >= 2 && rng.chance(0.6)) add(I.mkIngot(1, rng.int(1, 3)));
     add(I.mkMisc('leather', rng.int(2, 6)));
+    // blueprints: a few patterns, and the treatise for the best metal this smith works (never starmetal)
+    const pats = rng.shuffle(Object.keys(PATTERNS)); for (let i = 0; i < 2 + sz; i++) add(I.mkBlueprint('pat:' + pats[i]));
+    if (base >= 1) add(I.mkBlueprint('met:' + Math.min(3, base))); if (base >= 2 && rng.chance(0.5)) add(I.mkBlueprint('met:' + (Math.min(3, base) - 1)));
   } else if (t === 'trader') {
     add(I.mkMisc('lockpick', rng.int(3, 9))); add(I.mkMisc('torch', rng.int(3, 8))); add(I.mkMisc('bread', rng.int(3, 8))); add(I.mkMisc('cheese', rng.int(1, 5))); add(I.mkMisc('arrow', rng.int(20, 60))); add(I.mkMisc('leather', rng.int(2, 6)));
-    if (rng.chance(0.7)) add(I.mkMisc('mortar')); if (rng.chance(0.6)) add(I.mkMisc('pickaxe')); if (rng.chance(0.6)) add(I.mkMisc('hammer'));
+    add(I.mkMisc('sickle')); add(I.mkMisc('knife')); if (rng.chance(0.7)) add(I.mkMisc('mortar')); if (rng.chance(0.7)) add(I.mkMisc('pickaxe')); if (rng.chance(0.5)) add(I.mkMisc('hammer')); if (rng.chance(0.25)) add(I.mkBlueprint('pat:' + rng.pick(Object.keys(PATTERNS))));
     for (let i = 0; i < 4 + sz; i++) add(I.randomGear(rng, Math.max(0, sz - 0.5), 0.1));
     for (let i = 0; i < 2; i++) add(I.randomPotion(rng)); if (rng.chance(0.4 + sz * 0.15)) add(I.mkJewel(rng.pick(['ring', 'amulet', 'belt']), rng, 0.2 + sz * 0.15));
     add(I.mkWeapon('shortbow', 0));
   } else if (t === 'alchemist') {
     for (let i = 0; i < 8 + sz * 2; i++) add(I.randomPotion(rng, 1 + sz * 0.15));
-    add(I.mkPotion('heal', 28, 3)); add(I.mkPotion('cure', 1, 2)); add(I.mkMisc('mortar'));
+    add(I.mkPotion('heal', 28, 3)); add(I.mkPotion('cure', 1, 2)); add(I.mkMisc('mortar')); add(I.mkMisc('sickle')); if (sz >= 1) add(I.mkMisc('alembic')); if (sz >= 2) add(I.mkMisc('calcinator')); if (sz >= 2 && rng.chance(0.6)) add(I.mkMisc('retort'));
     const ids = Object.keys(INGREDIENTS).filter((k) => INGREDIENTS[k].fx.length); for (let i = 0; i < 8; i++) add(I.mkIng(rng.pick(ids), rng.int(1, 4)));
   } else if (t === 'arcanist') {
     const ids = Object.keys(SPELLS).filter((s) => SPELLS[s].lvl <= 30 + sz * 25); rng.shuffle(ids); for (const id of ids.slice(0, 5 + sz * 2)) add(I.mkTome(id));
@@ -73,7 +77,7 @@ function rumor(c, L) {
   if (k === 3) { const m = MONSTERS[r.weighted(BIOMES[L.biome].wild)]; return `Mind yourself beyond the last houses. ${Q.plural(m.name)} have been seen in the ${BIOMES[L.biome].name.toLowerCase()}, bolder than ever${isNight() ? ', and worse things walk after dark' : ''}.`; }
   if (k === 4) { const f = r.pick(FORAGE[BIOMES[L.biome].id]); const I2 = INGREDIENTS[f[0]]; return `If you have an eye for herbs, ${I2.name} grows wild around here. The apothecaries pay for it - they say it is good for ${I2.fx.map((x) => ({ heal: 'wounds', mana: 'the mind', stam: 'tired legs', regen: 'mending', might: 'strength', swift: 'quick feet', stone: 'toughening the skin', night: 'seeing in the dark', feather: 'a heavy pack', cure: 'poison' }[x])).join(' and ')}.`; }
   if (k === 5) { const C = W.nearest(L.x, L.z, (l) => l.type === 'castle', 1)[0]; if (C) { const k2 = citizensOf(C, getLayout(W, C).buildings.find((b) => b.type === 'castle'))[0]; mark(C); return `King ${k2.name.split(' ')[0]} holds court at ${C.name}, ${Q.whereText(L, C)}. They say the crown pays handsomely for dangerous work.`; } }
-  return r.pick(['Stone circles in the wilds whisper old lore to those who touch them. My grandmother swore by it.', 'Wayside shrines will bless a traveller once a day. Costs nothing but a moment.', 'Sleep in a proper inn bed and you learn quicker the next day. That is no rumor, that is plain sense.', 'A torch in the off hand is worth more than a shield when you cannot see the thing biting you.', 'Locked chest? The trader sells picks. Mind your fingers.', 'Ore veins show copper-bright in caves and on the mountainsides. Bring a pickaxe.']);
+  return r.pick(['Stone circles in the wilds whisper old lore to those who touch them. My grandmother swore by it.', 'Wayside shrines will bless a traveller once a day. Costs nothing but a moment.', 'Sleep in a proper inn bed and you learn quicker the next day. That is no rumor, that is plain sense.', 'A torch in the off hand is worth more than a shield when you cannot see the thing biting you.', 'Locked chest? The trader sells picks. Mind your fingers.', 'Ore veins show copper-bright in mines, caves and on the mountainsides. Bring a pickaxe - the good metals are never sold, only dug.', 'A smith is only as good as the patterns he knows. Blueprints turn up in old chests, and smiths sell a few.', 'You will want a sickle for herbs and a knife for pelts. Bare hands only get you berries.']);
 }
 
 // Build the conversation for an NPC entity. Returns { greeting, topics: [{label, run}] } ; run returns text, or nothing if it opened a window.

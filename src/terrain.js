@@ -19,7 +19,7 @@ const FLORA_SETS = [
   { dens: 0.24, sp: [['pine', 3, 0.4], ['rock1', 3, 1.1], ['rock2', 2, 0.5], ['deadtree', 0.5, 0.3], ['grass', 1, 0]] },
   { dens: 0.5, sp: [['willow', 3, 0.5], ['reeds', 4, 0], ['deadtree', 2, 0.3], ['bush', 1, 0], ['grass', 1.5, 0]] },
 ];
-const FORAGE_RATE = [3.2, 0.6, 1.3, 0.9, 1.8];
+const FORAGE_RATE = [3.6, 1.0, 1.9, 1.4, 2.4];
 const SAND = [lin(0.78), lin(0.7), lin(0.48)], GRAVEL = [lin(0.33), lin(0.33), lin(0.3)];
 const ROCK = [lin(0.4), lin(0.39), lin(0.37)], SNOW = [0.9, 0.92, 0.96], DIRT = [lin(0.42), lin(0.35), lin(0.24)], COBBLE = [lin(0.45), lin(0.43), lin(0.4)], ROAD = [lin(0.5), lin(0.4), lin(0.27)], MUD = [lin(0.2), lin(0.19), lin(0.13)];
 const BCOL = BIOMES.map((b) => [b.ground.map(lin), b.ground2.map(lin)]);
@@ -184,7 +184,7 @@ export class Terrain {
       if (c.lw[k] > 0.03 || c.nrmY[k] < 0.7 || c.rs[k] === c.rs[k]) continue;
       const y = this.groundAt(x, z); if (y < 0.05 && f[0] !== 'boglily') continue;
       if (b === B_MOUNT && y > 200) continue;
-      c.forage.push({ kind: 'forage', id: c.cx + ',' + c.cz + ',' + n, x, y, z, ing: f[0], sprite: f[1], sc });
+      c.forage.push({ kind: 'forage', id: c.cx + ',' + c.cz + ',' + n, x, y, z, ing: f[0], sprite: f[1], tool: f[2], sc });
     }
   }
 
@@ -243,10 +243,10 @@ export class Terrain {
       const y = this.world.height(p.x, p.z);
       if (p.type === 'shrine') { put('shrine', 0, 0, 0.6); c.inter.push({ kind: 'shrine', x: p.x, y: y + 1.2, z: p.z, poi: p }); }
       else if (p.type === 'stones') { for (let i = 0; i < 6; i++) put('stone', Math.cos(i * 1.047) * 6, Math.sin(i * 1.047) * 6, 0.5, 0.9 + rng.next() * 0.3); put('stone', 0, 0, 0.6, 1.3); c.inter.push({ kind: 'stones', x: p.x, y: y + 1.4, z: p.z, poi: p }); }
-      else if (p.type === 'ore') { for (let i = 0; i < 3; i++) { const q = put('ore', rng.range(-7, 7), rng.range(-7, 7), 0.7); c.inter.push({ kind: 'ore', id: 'ore' + p.id + '_' + i, x: q.x, y: q.y + 0.7, z: q.z, tier: rng.weighted([[0, 6], [1, 3], [2, 1.5], [3, 0.6]]) }); } }
+      else if (p.type === 'ore') { for (let i = 0; i < 3; i++) { const q = put('ore', rng.range(-7, 7), rng.range(-7, 7), 0.7); c.inter.push({ kind: 'ore', id: 'ore' + p.id + '_' + i, x: q.x, y: q.y + 0.7, z: q.z, tier: rng.weighted(p.biome === B_MOUNT ? [[0, 5], [1, 3.5], [2, 2], [3, 1], [4, 0.3]] : [[0, 6], [1, 2]]), coal: rng.chance(0.25) }); } }
       else if (p.type === 'cache') { put('cart', 2.5, 0, 1.2); const q = put('chest', -0.5, 0.8, 0.5); c.inter.push({ kind: 'chest', id: 'poi' + p.id, x: q.x, y: q.y + 0.6, z: q.z, tier: 1 + (p.seed % 3), lock: p.seed % 5 < 2 ? 1 + (p.seed % 3) : 0, respawn: 12 }); }
       else if (p.type === 'camp') { put('tent', -3.5, -1, 1.4); put('tent', 3, -2.5, 1.4); put('campfire', 0, 1.5, 0.5); const q = put('chest', -2, 3.5, 0.5); c.inter.push({ kind: 'chest', id: 'poi' + p.id, x: q.x, y: q.y + 0.6, z: q.z, tier: 2, lock: p.seed % 3 ? 0 : 2, respawn: 10 }); this.pendingCamps.push(p); }
-      else if (p.type === 'ring') { const list = FORAGE[BIOMES[p.biome].id], f = list.find((e) => e[1].startsWith('mushroom')) || list[0]; for (let i = 0; i < 7; i++) { const x = p.x + Math.cos(i * 0.9) * 3.2, z = p.z + Math.sin(i * 0.9) * 3.2; c.forage.push({ kind: 'forage', id: 'ring' + p.id + '_' + i, x, y: this.world.height(x, z), z, ing: f[0], sprite: f[1], sc: 1.1 }); } }
+      else if (p.type === 'ring') { const list = FORAGE[BIOMES[p.biome].id], f = list.find((e) => e[1].startsWith('mushroom')) || list[0]; for (let i = 0; i < 7; i++) { const x = p.x + Math.cos(i * 0.9) * 3.2, z = p.z + Math.sin(i * 0.9) * 3.2; c.forage.push({ kind: 'forage', id: 'ring' + p.id + '_' + i, x, y: this.world.height(x, z), z, ing: f[0], sprite: f[1], tool: f[2], sc: 1.1 }); } }
     }
   }
 

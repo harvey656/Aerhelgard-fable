@@ -104,7 +104,7 @@ function addDungeon(get, bill, b, gy, x0, z0, x1, z1) {
     }
     S.box(x0, z0, x1, z1, y0, gy + b.h, 4, true);
     doorQuad(get('dark'), d, gy, 1.8, 2.5);
-  } else { // cave / den: a rocky mound with a dark mouth
+  } else { // cave / den / mine: a rocky mound with a dark mouth
     const Rk = get('rock'), R = b.w * 0.75, H = b.h, n = 9, rings = 3;
     const pt = (k, i) => { const a = i / n * Math.PI * 2, ph = k / rings * 1.45, j = 0.82 + hash01(i % n, k, (b.x | 0) + 3) * 0.36; return [b.x + Math.cos(a) * R * Math.cos(ph) * j, gy - 1.5 + (H + 1.5) * Math.sin(ph) * (k === rings ? 1 : j), b.z + Math.sin(a) * R * Math.cos(ph) * j]; };
     for (let k = 0; k < rings; k++) for (let i = 0; i < n; i++) Rk.quad(pt(k, i), pt(k, i + 1), pt(k + 1, i + 1), pt(k + 1, i), 2, 1.5);

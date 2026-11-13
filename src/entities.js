@@ -5,7 +5,7 @@ import { rnd, clamp, hash2, RNG } from './rng.js';
 import { G, hourOf, isNight, dayOf } from './state.js';
 import { humanSheet, monsterSheet } from './sprites.js';
 import { getLayout, citizensOf, guardCitizen, whereabouts } from './settlement.js';
-import { rollLoot } from './items.js';
+import { rollLoot, randomBlueprint } from './items.js';
 import { tintC } from './sky.js';
 import { PROPS, T, Pix } from './art.js';
 import { CHUNK, ckey } from './world.js';
@@ -107,6 +107,8 @@ export class Monster extends Ent {
     this.dead = true; this.deadT = 0; G.player.kills++;
     G.fn.sfx('die'); G.fn.onKill(this);
     const loot = rollLoot(this.def.loot, rnd, this.tier);
+    if (loot.items.some((i) => i.id === 'pelt') && !G.player.has((i) => i.id === 'knife')) { loot.items = loot.items.filter((i) => i.id !== 'pelt'); if (!G.knifeHint) { G.knifeHint = 1; G.fn.msg('With a skinning knife you could have taken its pelt.'); } }
+    if (this.def.boss && rnd.chance(0.5)) loot.items.push(randomBlueprint(rnd, this.tier));
     if (loot.items.length || loot.gold) spawnLoot(this.x, this.z, loot, this.name);
   }
   update(dt, cam) {

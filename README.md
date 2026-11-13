@@ -44,7 +44,7 @@ surrounded by sea with offshore islands, dotted with lakes and crossed by rivers
 to the coast. Wooden bridges stand wherever a road crosses a river. The land is divided into large biome regions (forest, desert, plains, mountains,
 swamp), each with its own palette, fog, lighting, flora, forage and monsters. Nearly 900 locations are placed
 with at least 650 m between their edges (typically about a kilometre to the nearest neighbour): farms (2–5 buildings), villages (5–15), towns (20–50), cities
-(100–500) and walled castle-cities (500–1000 around a great castle, four gates), plus crypts, caves, monster
+(100–500) and walled castle-cities (500–1000 around a great castle, four gates), plus crypts, caves, mines, monster
 dens, ruins and towers. Terrain streams in seamlessly around the player; roads link the settlements; wayshrines,
 standing stones, bandit camps, abandoned carts, ore outcrops and mushroom rings dot the wilds.
 
@@ -68,6 +68,14 @@ bonus. Speak with a castle steward (later the king), any guildmaster, or any pri
 
 **Quests.** Parcel deliveries to other settlements, relic recovery from dungeons, bounties on dungeon
 bosses, culling monsters, foraging, and supply contracts. Guild standing improves pay.
+
+**Gathering and crafting.** Each biome has its own six or seven plants (31 in all), and every ingredient has up
+to three effects; your Alchemy skill decides how many you can draw out. Tools are required and carried in your
+pack: a sickle for herbs, a skinning knife for pelts, a pickaxe for ore and coal, a mortar and pestle to brew
+(alembic, calcinator and retort improve the results), and a hammer and tongs to smith. Forging, tempering and
+smelting need an anvil at a smithy; only rough repairs can be done in the field. To forge an item you must know
+its blueprint and the treatise for its metal - smiths sell a few, the rest are found - and metals better than
+steel are never sold, only mined. Mines are a new kind of place, richest in the mountains, with finer ore deeper down.
 
 **Also.** Real-time melee, archery and three schools of magic; lock-picking minigame; alchemy from shared
 ingredient effects; smelting, forging, tempering and repair; mining; day/night cycle; resting and ambushes;

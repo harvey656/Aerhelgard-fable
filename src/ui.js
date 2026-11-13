@@ -143,7 +143,7 @@ function itemRow(it, right, onclick, cls = '') {
   const P = G.player, r = h('div', { class: 'item ' + cls + (P.isEquipped(it) ? ' eq' : '') + (it.ench ? ' magic' : '') }, h('img', { src: itemIcon(it.icon, it.col) }), h('span', { class: 'n' }, it.name + (it.qty > 1 ? ' (' + it.qty + ')' : '')), h('span', { class: 'q' }, right));
   r.addEventListener('click', onclick); return r;
 }
-const CATS = [['All', () => true], ['Weapons', (i) => i.type === 'weapon' || i.type === 'ammo' || i.type === 'shield'], ['Armor', (i) => i.type === 'armor' || i.type === 'jewel'], ['Potions', (i) => i.type === 'potion' || i.type === 'food'], ['Ingredients', (i) => i.type === 'ingredient'], ['Misc', (i) => ['tool', 'mat', 'tome', 'quest', 'torch'].includes(i.type)]];
+const CATS = [['All', () => true], ['Weapons', (i) => i.type === 'weapon' || i.type === 'ammo' || i.type === 'shield'], ['Armor', (i) => i.type === 'armor' || i.type === 'jewel'], ['Potions', (i) => i.type === 'potion' || i.type === 'food'], ['Ingredients', (i) => i.type === 'ingredient'], ['Misc', (i) => ['tool', 'mat', 'tome', 'quest', 'torch', 'blueprint'].includes(i.type)]];
 const sortInv = (a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type.localeCompare(b.type));
 
 // ----- inventory -----
@@ -178,7 +178,7 @@ UI.inventory = function () {
     const it = P.inv.includes(invSel) ? invSel : null;
     const act = h('div', { class: 'row', style: 'min-height:34px;flex-wrap:wrap' });
     if (it) {
-      const verb = it.type === 'potion' ? 'Drink' : it.type === 'food' || (it.type === 'ingredient' && it.food) ? 'Eat' : it.type === 'tome' ? 'Read' : it.slot ? (P.isEquipped(it) ? 'Unequip' : 'Equip') : it.id === 'hammer' || it.id === 'mortar' ? 'Use' : null;
+      const verb = it.type === 'potion' ? 'Drink' : it.type === 'food' || (it.type === 'ingredient' && it.food) ? 'Eat' : it.type === 'tome' || it.type === 'blueprint' ? 'Read' : it.slot ? (P.isEquipped(it) ? 'Unequip' : 'Equip') : it.id === 'hammer' || it.id === 'mortar' ? 'Use' : null;
       act.append(h('span', { style: 'color:#f0d890' }, it.name));
       if (verb) act.append(h('button', { onclick: () => { P.useItem(it); if (UI.open === 'inv') draw(); } }, verb));
       if (it.type === 'weapon' && it.hands === 1) act.append(h('button', { onclick: () => { P.equipOffhand(it); draw(); } }, 'Off-hand'));
@@ -312,7 +312,7 @@ UI.openTrade = function (npc, b, L) {
 
 // ----- world map -----
 let mapBase = null, mapZoom = 0, mapCx = 0, mapCz = 0;
-const PIN = { farm: '#c8b060', village: '#e0c070', town: '#f0d890', city: '#fff0b0', castle: '#ffffff', crypt: '#b8b8c8', cave: '#a08060', den: '#c06040', ruin: '#d0a060', tower: '#a090d0' };
+const PIN = { farm: '#c8b060', village: '#e0c070', town: '#f0d890', city: '#fff0b0', castle: '#ffffff', mine: '#e8a040', crypt: '#b8b8c8', cave: '#a08060', den: '#c06040', ruin: '#d0a060', tower: '#a090d0' };
 UI.map = function () {
   const W = G.world, P = G.player, S = G.save;
   if (!mapBase || mapBase.seed !== W.seed || mapBase.size !== W.size) { const n = 384, c = document.createElement('canvas'); c.width = c.height = n; c.getContext('2d').putImageData(new ImageData(W.mapImage(n), n, n), 0, 0); mapBase = c; mapBase.seed = W.seed; mapBase.size = W.size; mapZoom = 0; }
