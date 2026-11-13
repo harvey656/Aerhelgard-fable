@@ -2,10 +2,12 @@
 import { RNG, hash2, clamp } from './rng.js';
 import { GUILDS, FAITHS, KINGDOM_RANKS, RANK_REP, BIOMES, MONSTERS, INGREDIENTS, FORAGE } from './data.js';
 import { G } from './state.js';
-import { getLayout, clearLayout, citizensOf, guildOf, faithOf, realmName } from './settlement.js';
+import { getLayout, clearLayout, citizensOf, clearCitizensOf, guildOf, faithOf, realmName } from './settlement.js';
 import { personName } from './names.js';
 import * as Q from './quests.js';
 import { mkJewel, randomGear } from './items.js';
+import * as I from './items.js';
+import { SPELLS } from './data.js';
 
 // ---------------------------------------------------------------------------------------------
 // Mission scripts. Each is [title, briefing, steps, closing words].
@@ -179,7 +181,7 @@ export function leads(c, L) {
 export function activeMain(fid) { return G.save.quests.find((q) => q.main && q.faction === fid && q.state === 'active'); }
 
 const BIG = (l) => l.type === 'town' || l.type === 'city' || l.type === 'castle';
-function tgt(L, b, c, title) { if (title) G.save.titles[c.id] = title; return { id: c.id, name: c.name, loc: L.id, b: b.i, title }; }
+function tgt(L, b, c, title) { return { id: c.id, name: c.name, loc: L.id, b: b.i, title }; }
 function keeper(L, type, i = 0) { const b = getLayout(G.world, L).buildings.find((x) => x.type === type); if (!b) return null; const cs = citizensOf(L, b); return cs[i] ? tgt(L, b, cs[i]) : null; }
 function headOf(L) { const lay = getLayout(G.world, L), b = lay.buildings.find((x) => x.type === 'house' || x.type === 'farmhouse') || lay.buildings[0], c = citizensOf(L, b)[0]; return tgt(L, b, c, (L.type === 'village' || L.type === 'farm' ? 'Elder' : L.type === 'town' ? 'Reeve' : 'Mayor') + ' of ' + L.name); }
 function court(C, role, title) { const b = getLayout(G.world, C).buildings.find((x) => x.type === 'castle'), c = citizensOf(C, b).find((x) => x.role === role); return tgt(C, b, c, title); }
@@ -200,7 +202,7 @@ function person(ctx, key) {
     case 'alch': case 'arcan': { const t = key === 'alch' ? 'alchemist' : 'arcanist'; p = keeper(H, t) || keeper(near((x) => x.type === 'city' || x.type === 'castle', 1)[0], t); break; }
     case 'priest': p = keeper(BIG(H) ? H : near(BIG, 1)[0], 'church'); break;
     case 'priest2': case 'priest3': { const l = other((x) => BIG(x) && faithOf(x) === ctx.fid, key === 'priest2' ? 0 : 1) || other(BIG, 0); p = keeper(l, 'church'); break; }
-    case 'high': { let best = null; for (const l of W.locs) if (BIG(l) && l !== H && faithOf(l) === ctx.fid && (!best || l.count > best.count)) best = l; best = best || other(BIG, 0); p = keeper(best, 'church'); G.save.titles[p.id] = { dawn: 'Dawn-Speaker', moon: 'the Veiled One', hearth: 'Flamewarden' }[ctx.fid] || 'High Priest'; break; }
+    case 'high': { let best = seatOf(ctx.fid); if (!best || best === H) { best = null; for (const l of W.locs) if (BIG(l) && l !== H && faithOf(l) === ctx.fid && (!best || l.count > best.count)) best = l; } best = best || other(BIG, 0); p = keeper(best, 'church'); break; }
     case 'acolyte': p = keeper(H, 'church', 1) || keeper(H, 'church'); break;
     case 'king': p = court(C, 'king'); break; case 'queen': p = court(C, 'queen'); break; case 'steward': p = court(C, 'steward'); break;
     case 'marshal': p = court(C, 'guard', 'Marshal of the Realm'); break;
@@ -284,6 +286,7 @@ export function business(fid, c, L) {
 export function credit(q) {
   const fid = q.faction, def = factionDef(fid), st = fstate(fid), before = rankOf(fid);
   st.rep += q.rep || 5; st.met = 1;
+  addInfluence(G.world.locs[q.giver.loc], fid, q.main ? 10 : 6);
   if (q.main) {
     st.done++;
     const n = def.missions.length, P = G.player;
@@ -299,35 +302,170 @@ export function credit(q) {
   if (after > before && after < 5) { G.fn.msg(def.name + ': you rise to the rank of ' + def.ranks[after] + '.', 'perk'); G.fn.sfx('level'); }
   boons();
 }
-// A guild that grows takes over the nearest hall of another guild, and its banners go up in that town.
-function spreadInfluence(fid, from) {
-  const W = G.world, S = G.save, def = factionDef(fid);
-  const halls = {}; for (const l of W.locs) if (BIG(l)) halls[guildOf(l)] = (halls[guildOf(l)] || 0) + 1;
-  const free = (l) => BIG(l) && halls[guildOf(l)] > 1; // a guild never loses its last hall
-  const T = W.nearest(from.x, from.z, (l) => free(l) && guildOf(l) === def.rival, 1)[0] || W.nearest(from.x, from.z, (l) => free(l) && guildOf(l) !== fid, 1)[0];
-  if (!T) return;
-  S.guildOf[T.id] = fid; clearLayout(T.id);
-  if (G.terrain) G.terrain.rebuildNear(T.x, T.z, T.r + 80);
-  if (!S.discovered[T.id]) S.known[T.id] = 1;
-  G.fn.msg('The ' + def.name + ' grows: its banners now fly over ' + T.name + ', and ' + def.mark + ' there. (' + def.boon[2] + ')', 'perk');
+// ---------------------------------------------------------------------------------------------
+// Influence. Every town has a standing for each guild, and every settlement for each faith.
+// Whoever stands highest keeps the hall (or the temple). Work done for a faction in a place raises it there.
+// ---------------------------------------------------------------------------------------------
+const kindIds = (kind) => Object.keys(kind === 'guild' ? GUILDS : FAITHS);
+const holderOf = (L, kind) => (kind === 'guild' ? guildOf(L) : faithOf(L));
+export function influenceAt(L, kind) {
+  const S = G.save, store = kind === 'guild' ? S.infl : S.inflF, rec = store[L.id], hold = holderOf(L, kind), out = {};
+  for (const id of kindIds(kind)) out[id] = rec && rec[id] !== undefined ? rec[id] : id === hold ? 60 : hash2(L.id, id.length * 7 + id.charCodeAt(0), 91) % 18;
+  return out;
 }
-export function influence(fid) { let n = 0; for (const k in G.save.guildOf) if (G.save.guildOf[k] === fid) n++; return n; }
+export function addInfluence(L, fid, amt) {
+  const def = factionDef(fid); if (def.type === 'kingdom' || !L || !L.civ || (def.type === 'guild' && !BIG(L))) return;
+  const kind = def.type === 'guild' ? 'guild' : 'church', S = G.save, store = kind === 'guild' ? S.infl : S.inflF, cur = influenceAt(L, kind), hold = holderOf(L, kind);
+  cur[fid] = clamp(cur[fid] + amt, 0, 100);
+  if (hold !== fid && amt > 0) cur[hold] = clamp(cur[hold] - amt / 4, 0, 100);
+  store[L.id] = cur;
+  if (hold !== fid && cur[fid] > cur[hold]) { // the place changes hands - unless it is the old holder's last
+    let left = 0; for (const l of G.world.locs) if (l.civ && (kind === 'church' || BIG(l)) && holderOf(l, kind) === hold) left++;
+    if (left <= 1) { cur[fid] = cur[hold]; return; }
+    (kind === 'guild' ? S.guildOf : S.faithOf)[L.id] = fid; cur[fid] = Math.max(cur[fid], 60);
+    clearLayout(L.id); clearCitizensOf(L); hqCache = {};
+    if (G.terrain && !G.space) G.terrain.rebuildNear(L.x, L.z, L.r + 80);
+    if (!S.discovered[L.id]) S.known[L.id] = 1;
+    G.fn.banner(def.name + ' takes ' + L.name);
+    G.fn.msg(kind === 'guild' ? 'The ' + def.name + ' has won ' + L.name + ' from the ' + GUILDS[hold].name + ': its hall and banners are theirs now, and ' + def.mark + '. (' + def.boon[2] + ')' : 'The people of ' + L.name + ' have turned to the ' + def.name + '. Its temple has been reconsecrated.', 'perk');
+    boons();
+  }
+}
+// called once per game day: influence settles back toward what the holder can sustain
+export function dailyDrift() {
+  const S = G.save;
+  for (const [store, kind] of [[S.infl, 'guild'], [S.inflF, 'church']]) for (const id in store) {
+    const L = G.world.locs[id], rec = store[id], hold = holderOf(L, kind);
+    for (const f in rec) { const base = f === hold ? 60 : hash2(L.id, f.length * 7 + f.charCodeAt(0), 91) % 18; if (rec[f] > base) rec[f] = Math.max(base, rec[f] - 1); else if (rec[f] < base) rec[f] = Math.min(base, rec[f] + 1.5); }
+  }
+}
+function spreadInfluence(fid, from) { // a story milestone: a hard push on the nearest rival-held town
+  const W = G.world, def = factionDef(fid);
+  const T = W.nearest(from.x, from.z, (l) => BIG(l) && guildOf(l) === def.rival, 1)[0] || W.nearest(from.x, from.z, (l) => BIG(l) && guildOf(l) !== fid, 1)[0];
+  if (T) addInfluence(T, fid, 55);
+}
+export function influence(fid) { let n = 0; const o = GUILDS[fid] ? G.save.guildOf : G.save.faithOf; for (const k in o) if (o[k] === fid) n++; return n; }
+export function holdings(fid) { const def = factionDef(fid); let n = 0; if (def.type === 'kingdom') { for (const l of G.world.locs) if (l.civ && l.realm === def.seat.id) n++; return n; } for (const l of G.world.locs) if (l.civ && (def.type === 'church' ? faithOf(l) === fid : BIG(l) && guildOf(l) === fid)) n++; return n; }
 // Permanent bonuses earned from factions; read through player.perk()
 export function boons() {
   const b = G.boons = {};
   for (const fid in G.save.factions) {
     const def = factionDef(fid), st = G.save.factions[fid], add = (k, v) => { b[k] = (b[k] || 0) + v; };
-    if (def.type === 'guild') add(def.boon[0], def.boon[1] * influence(fid));
-    if (st.done >= def.missions.length) add(def.boon[0], def.boon[1] * (def.type === 'guild' ? 1 : 1));
+    if (def.type === 'guild') add(def.boon[0], def.boon[1] * Math.min(6, influence(fid)));
+    if (st.done >= def.missions.length) add(def.boon[0], def.boon[1]);
   }
   return b;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Leadership and members: who holds which office, and what they are called.
+// ---------------------------------------------------------------------------------------------
+let hqCache = {};
+// the seat of a guild or faith: the largest settlement it holds
+export function seatOf(fid) {
+  const def = factionDef(fid); if (def.type === 'kingdom') return def.seat;
+  const key = fid + G.world.seed; if (hqCache[key]) return hqCache[key];
+  let best = null; for (const l of G.world.locs) if (BIG(l) && holderOf(l, def.type === 'guild' ? 'guild' : 'church') === fid && (!best || l.count > best.count)) best = l;
+  return (hqCache[key] = best);
+}
+const HIGH = { dawn: 'Dawn-Speaker', moon: 'the Veiled One', hearth: 'Flamewarden' };
+const COURT = ['Chancellor', 'Lord Treasurer', 'Court Wizard', 'Master of Hounds', 'Lady of the Robes'];
+export function titleOf(c, L, b) {
+  if (G.save.titles[c.id]) return G.save.titles[c.id];
+  if (!b) return c.role === 'guard' ? 'Guard' : null;
+  const cs = citizensOf(L, b);
+  if (b.type === 'castle') {
+    if (c.role === 'king') return 'King of ' + realmName(G.world, L).slice(11); if (c.role === 'queen') return 'Queen of ' + realmName(G.world, L).slice(11); if (c.role === 'steward') return 'Steward of ' + L.name;
+    if (c.role === 'guard') return cs.find((x) => x.role === 'guard') === c ? 'Marshal of the Realm' : 'Royal Guard';
+    if (c.role === 'noble') return COURT[cs.filter((x) => x.role === 'noble').indexOf(c) % COURT.length];
+    return 'Servant of the Court';
+  }
+  if (b.type === 'guild') {
+    const g = guildOf(L), def = GUILDS[g], seat = seatOf(g) === L;
+    if (c.role === 'Guildmaster') return seat ? 'Grandmaster of the ' + def.name : 'Guildmaster, ' + def.name;
+    if (c.role === 'quartermaster') return 'Quartermaster, ' + def.name;
+    return def.ranks[1 + (c.seed % 4)] + ' of the ' + def.name;
+  }
+  if (b.type === 'church') {
+    const f = faithOf(L), def = FAITHS[f];
+    if (c.role === 'Priest') return seatOf(f) === L ? HIGH[f] + ' of the ' + def.name.replace(/^.* of the /, '') : 'Priest, ' + def.name;
+    return (c.role === 'cleric' ? def.ranks[3] : def.ranks[2]) + ', ' + def.name;
+  }
+  if ((b.type === 'house' || b.type === 'farmhouse') && c.n === 0 && getLayout(G.world, L).buildings.find((x) => x.type === 'house' || x.type === 'farmhouse') === b) return (L.type === 'village' || L.type === 'farm' ? 'Elder' : L.type === 'town' ? 'Reeve' : 'Mayor') + ' of ' + L.name;
+  return null;
+}
+// the named leadership of a faction, for the journal
+export function leadership(fid) {
+  const def = factionDef(fid), seat = seatOf(fid), out = []; if (!seat) return out;
+  const lay = getLayout(G.world, seat), b = lay.buildings.find((x) => x.type === (def.type === 'kingdom' ? 'castle' : def.type === 'guild' ? 'guild' : 'church')); if (!b) return out;
+  const cs = citizensOf(seat, b), put = (c) => { if (c) out.push({ title: titleOf(c, seat, b), name: c.name, where: seat.name }); };
+  if (def.type === 'kingdom') { put(cs.find((c) => c.role === 'king')); put(cs.find((c) => c.role === 'queen')); put(cs.find((c) => c.role === 'steward')); put(cs.find((c) => c.role === 'guard')); for (const c of cs.filter((x) => x.role === 'noble').slice(0, 3)) put(c); }
+  else { put(cs[0]); put(cs[1]); if (cs[2]) put(cs[2]); }
+  return out;
+}
+// which faction a citizen belongs to (leaders, officers and ordinary members alike)
+export function memberOf(c, L, b) {
+  if (!b) return L.civ && c.role === 'guard' ? 'k:' + L.realm : null;
+  if (b.type === 'castle') return 'k:' + L.id; if (b.type === 'guild') return guildOf(L); if (b.type === 'church') return faithOf(L);
+  return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Privileges: what each rank entitles you to.
+// ---------------------------------------------------------------------------------------------
+const GUILD_SPECIAL = {
+  blades: ['repair', 'Company Armourer', 'The guildmaster or quartermaster of any Free Blades hall repairs all your gear for free.'],
+  page: ['library', 'Circle Library', 'Quartermasters of the Circle sell every spell tome you are able to learn.'],
+  scale: ['prices', 'Member\'s Rate', 'Prices are 10% better in every town where the Gilded Scale holds the hall.'],
+  lantern: ['whispers', 'Whispers', 'Once a day a Lantern officer will mark three places you have not yet found on your map.'],
+};
+export function privileges(fid) {
+  const def = factionDef(fid);
+  if (def.type === 'guild') { const sp = GUILD_SPECIAL[fid]; return [
+    [1, 'bed', 'A Bunk in the Hall', 'Sleep for free in any ' + def.hall + '.'], [1, 'store', 'Guild Stores', 'Buy from the quartermaster\'s private stock at member prices.'],
+    [2, sp[0], sp[1], sp[2]], [3, 'stash', 'Strongbox', 'A personal strongbox, reachable from the quartermaster of every hall.'], [3, 'train', 'Master Instruction', 'Members train you for 30% less, and to a higher level.'],
+    [4, 'stipend', 'Officer\'s Pay', 'Draw 30 gold a day from any guildmaster.'], [5, 'stipend2', 'Master\'s Share', 'Your daily pay rises to 80 gold, plus 10 for every town the guild has won.']]; }
+  if (def.type === 'kingdom') return [
+    [1, 'bed', 'Barracks Bed', 'Sleep for free in the castle.'], [2, 'commission', 'Royal Warrant', 'Royal commissions pay you 25% more.'],
+    [3, 'store', 'Royal Armoury', 'The steward will sell you arms from the royal armoury.'], [4, 'stash', 'Chamber in the Keep', 'A strongbox of your own, kept by the steward.'], [4, 'stipend', 'Knight\'s Pension', 'Draw 45 gold a day from the steward.'],
+    [5, 'stipend2', 'Protector\'s Tithe', 'Your daily income rises to 130 gold from the realm\'s taxes.']];
+  return [
+    [1, 'heal', 'Sanctuary', 'Priests of the faith heal and cure you for free.'], [2, 'bless', 'Daily Blessing', 'Once a day, a priest will lay a 20-minute blessing of your choice on you.'],
+    [3, 'store', 'Temple Stores', 'Buy healing draughts and remedies from the temple at cost.'], [4, 'relic', 'Greater Blessing', 'Your daily blessing is doubled in strength and lasts an hour.'], [5, 'stipend', 'Tithes', 'Draw 60 gold a day from any priest of the faith.']];
+}
+export function hasPriv(fid, key) { if (!fid) return false; const r = rankOf(fid); return privileges(fid).some((p) => p[1] === key && r >= p[0]); }
+export function stipendDue(fid) {
+  const st = fstate(fid), r = rankOf(fid), def = factionDef(fid); let rate = 0;
+  if (hasPriv(fid, 'stipend2')) rate = def.type === 'kingdom' ? 130 : 80 + 10 * influence(fid); else if (hasPriv(fid, 'stipend')) rate = def.type === 'kingdom' ? 45 : def.type === 'guild' ? 30 : 60;
+  const day = Math.floor(G.time / 86400), days = Math.min(7, day - (st.paid === undefined ? day - 1 : st.paid));
+  return { rate, days, gold: rate * Math.max(0, days), r };
+}
+export function collectStipend(fid) { const d = stipendDue(fid); fstate(fid).paid = Math.floor(G.time / 86400); G.player.gold += d.gold; return d; }
+// private stock a faction keeps for its members
+export function factionStock(fid) {
+  const def = factionDef(fid), S = G.save, ep = Math.floor(G.time / 86400 / 3), key = 'f:' + fid, r = rankOf(fid);
+  if (S.shops[key] && S.shops[key].ep === ep && S.shops[key].r === r) return S.shops[key];
+  const rng = new RNG(hash2(ep, r, hash2(fid.length, fid.charCodeAt(fid.length - 1), G.world.seed))), items = [], add = (it) => { const ex = it.stack && items.find((o) => o.sk === it.sk); if (ex) ex.qty += it.qty; else items.push(it); };
+  const tier = clamp(r - 1, 0, 3);
+  if (def.type === 'kingdom') { for (let i = 0; i < 8; i++) add(randomGear(rng, 1.5 + r * 0.4, 0.25)); add(I.mkMisc('arrow', 80)); add(I.mkBlueprint('met:' + clamp(r - 2, 1, 3))); for (let i = 0; i < 2; i++) add(I.randomBlueprint(rng, 2)); }
+  else if (def.type === 'church') { add(I.mkPotion('heal', 34, 6)); add(I.mkPotion('cure', 1, 4)); add(I.mkPotion('regen', 1.2, 3)); add(I.mkPotion('resist', 22, 3)); add(I.mkPotion('mana', 30, 3)); add(I.mkMisc('bread', 10)); if (r >= 4) add(I.mkJewel('amulet', rng, 0.8)); }
+  else if (fid === 'blades') { for (let i = 0; i < 9; i++) { const it = rng.chance(0.5) ? I.randomWeapon(rng, tier) : I.randomArmor(rng, tier); add(it); } add(I.mkMisc('arrow', 100)); add(I.mkPotion('heal', 30, 4)); add(I.mkMisc('hammer')); }
+  else if (fid === 'page') { const ids = Object.keys(SPELLS).filter((s) => hasPriv(fid, 'library') ? true : SPELLS[s].lvl <= 30); for (const id of ids) add(I.mkTome(id)); add(I.mkPotion('mana', 30, 6)); add(I.mkMisc('alembic')); add(I.mkJewel('ring', rng, 0.3 + r * 0.12)); }
+  else if (fid === 'scale') { for (let t = 0; t <= Math.min(2, tier); t++) add(I.mkIngot(t, 6)); add(I.mkMisc('coal', 12)); add(I.mkMisc('leather', 10)); add(I.mkMisc('gem', 2)); for (let i = 0; i < 3; i++) add(I.randomBlueprint(rng, 1 + tier)); for (let i = 0; i < 4; i++) add(randomGear(rng, tier, 0.3)); add(I.mkMisc('pickaxe')); add(I.mkMisc('tongs')); }
+  else { add(I.mkMisc('lockpick', 20)); add(I.mkPotion('night', 1, 4)); add(I.mkPotion('swift', 22, 4)); add(I.mkWeapon('dagger', tier)); add(I.mkWeapon('shortsword', tier)); add(I.mkWeapon('shortbow', Math.min(tier, 2))); for (const sl of ['head', 'body', 'arms', 'legs', 'feet']) add(I.mkArmor('light', sl, tier)); add(I.mkMisc('torch', 6)); add(I.mkJewel('ring', rng, 0.3 + r * 0.12)); }
+  return (S.shops[key] = { ep, r, items, gold: 400 + r * 300 });
+}
+
 export function summary(fid) {
-  const def = factionDef(fid), st = fstate(fid), r = rankOf(fid), n = def.missions.length;
-  let s = def.ideal + '\n\nRank: ' + def.ranks[r] + '\nStanding: ' + st.rep + (r < 4 ? '  (next rank at ' + RANK_REP[r + 1] + ')' : '') + '\nMain missions: ' + st.done + ' of ' + n;
-  if (def.type === 'guild') s += '\nRival: ' + GUILDS[def.rival].name + '\nTowns won over: ' + influence(fid) + '  (each grants ' + def.boon[2] + ')';
+  const def = factionDef(fid), st = fstate(fid), r = rankOf(fid), n = def.missions.length, seat = seatOf(fid);
+  let s = def.ideal + '\n\nRank: ' + def.ranks[r] + '   (' + def.ranks.join(' › ') + ')\nStanding: ' + st.rep + (r < 4 ? '  (next rank at ' + RANK_REP[r + 1] + ')' : '') + '\nMain missions: ' + st.done + ' of ' + n;
+  s += '\nHolds: ' + holdings(fid) + (def.type === 'kingdom' ? ' settlements' : def.type === 'guild' ? ' halls' : ' temples') + (seat ? ', seat at ' + seat.name : '');
+  if (def.type === 'guild') s += '\nRival: ' + GUILDS[def.rival].name + '\nHalls won with your help: ' + influence(fid) + '  (each grants ' + def.boon[2] + ')';
+  if (def.type === 'church' && influence(fid)) s += '\nTemples turned with your help: ' + influence(fid);
   if (st.done >= n) s += '\nStory complete: ' + def.boon[2] + '.';
-  else if (r < rankReq(def, st.done)) s += '\n\nThe next mission needs the rank of ' + def.ranks[rankReq(def, st.done)] + '. Take side work for this faction to raise your standing.';
-  const who = def.type === 'kingdom' ? (st.done < 6 ? 'the steward' : 'the king') + ' at ' + def.seat.name : def.type === 'guild' ? 'any guildmaster at a ' + def.hall : 'any priest at a ' + def.temple;
-  return s + '\n\nSpeak with ' + who + '.';
+  else if (r < rankReq(def, st.done)) s += '\nThe next mission needs the rank of ' + def.ranks[rankReq(def, st.done)] + '.';
+  s += '\n\nPRIVILEGES\n' + privileges(fid).map((p) => (r >= p[0] ? '✔ ' : '· ') + p[2] + ' (' + def.ranks[p[0]] + ') - ' + p[3]).join('\n');
+  const lead = leadership(fid); if (lead.length) s += '\n\nLEADERSHIP\n' + lead.map((l) => l.title + ': ' + l.name).join('\n');
+  s += '\n\nHOW TO RISE\nComplete main missions, ' + (def.type === 'kingdom' ? 'take the crown\'s commissions' : def.type === 'guild' ? 'take contracts from the guild\'s boards' : 'do tasks for its priests') + ', and do not abandon work you have accepted.' + (def.type !== 'kingdom' ? ' Work done in a town also raises the ' + def.name + '\'s influence there - enough of it, and the ' + (def.type === 'guild' ? 'hall' : 'temple') + ' changes hands.' : '');
+  return s;
 }

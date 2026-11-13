@@ -166,3 +166,12 @@ export function talkTopics(c, disposition) {
 }
 // People involved in active quests stay where they can be found
 export function homebound() { const s = G.homebound = new Set(); for (const q of G.save.quests) if (q.state === 'active') { s.add(q.giver.id); const o = cur(q); if (o && o.target) s.add(o.target.id); } }
+// Walking away from accepted work costs standing with whoever gave it.
+export function abandon(q) {
+  const P = G.player, S = G.save; if (q.main || q.state !== 'active') return;
+  for (const it of P.inv.filter((i) => i.quest === q.id)) P.removeItem(it, it.qty || 1);
+  q.state = 'failed'; if (S.tracked === q.id) S.tracked = (S.quests.find((x) => x.state === 'active') || {}).id || 0;
+  homebound();
+  if (q.faction) G.fn.factionPenalty(q.faction, q.faction === 'blades' ? 10 : 5);
+  G.fn.msg('Quest abandoned: ' + q.title, 'bad');
+}

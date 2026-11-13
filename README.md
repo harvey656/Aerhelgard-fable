@@ -66,6 +66,14 @@ against the faith). Later missions need higher rank, earned from the story plus 
 a master rank. A growing guild takes over rival halls in nearby towns - its banners go up and you gain a lasting
 bonus. Speak with a castle steward (later the king), any guildmaster, or any priest. Scripts are in `src/factions.js`.
 
+**Influence, rank and privilege.** Every town tracks the standing of each guild, and every settlement each
+faith; whoever stands highest keeps the hall or temple. Work you do for a faction in a place raises it there, and
+with enough the place changes hands - new name, new banners, new members. Each faction has six ranks, and each
+rank grants privileges: bunks, member stores, a strongbox shared between halls, cheaper and higher training, daily
+pay, free healing and daily blessings from your faith, the royal armoury, and a signature perk per guild.
+Abandoning accepted work costs standing. Factions have named leadership (grandmasters, quartermasters, high
+priests, marshals, chancellors, reeves and elders) and ranked members who will tell you about their order.
+
 **Quests.** Parcel deliveries to other settlements, relic recovery from dungeons, bounties on dungeon
 bosses, culling monsters, foraging, and supply contracts. Guild standing improves pay.
 

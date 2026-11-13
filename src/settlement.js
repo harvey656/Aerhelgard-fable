@@ -23,7 +23,7 @@ export function clearLayout(id) { cache.delete(id); }
 // Which guild keeps the hall in this settlement, and which faith its churches follow
 const GIDS = Object.keys(GUILDS), FIDS = Object.keys(FAITHS);
 export function guildOf(L) { const o = G.save && G.save.guildOf && G.save.guildOf[L.id]; return o || GIDS[L.guild !== undefined ? L.guild : hash2(L.id, 31, L.seed) % GIDS.length]; }
-export function faithOf(L) { return FIDS[L.faith !== undefined ? L.faith : hash2(L.id, 47, L.seed) % FIDS.length]; }
+export function faithOf(L) { const o = G.save && G.save.faithOf && G.save.faithOf[L.id]; if (o) return o; return FIDS[L.faith !== undefined ? L.faith : hash2(L.id, 47, L.seed) % FIDS.length]; }
 export function realmName(W, L) { const C = W.locs[L.realm]; return 'Kingdom of ' + C.name.replace(/^(Castle|Fort|Hold of) /, ''); }
 
 function mkBuilding(lay, type, x, z, w, d, h, nx, nz, extra) {
@@ -213,7 +213,7 @@ export function makeLook(rng, female, role, biome) {
   if (biome === B_DESERT && rng.chance(0.6)) { look.hood = 1; look.shirt = rng.pick(['#d8c8a0', '#c8b088', '#e8e0c8', '#a88858']); }
   if (role === 'Smith') { look.apron = '#3a2a20'; look.build = 1.15; }
   if (role === 'Innkeeper' || role === 'Trader' || role === 'Apothecary') look.apron = role === 'Apothecary' ? '#3a5a3a' : '#d8d0b8';
-  if (role === 'Priest' || role === 'acolyte') { look.robe = role === 'Priest' ? '#e8e0c8' : '#8a7a58'; look.hat = 0; }
+  if (role === 'Priest' || role === 'acolyte' || role === 'cleric') { look.robe = role === 'Priest' ? '#e8e0c8' : '#8a7a58'; look.hat = 0; }
   if (role === 'Arcanist') { look.robe = rng.pick(['#283a78', '#4a2a6a', '#1a4a4a']); look.hat = 2; }
   if (role === 'guard') { look.armor = '#8a8a92'; look.helm = 1; look.weapon = 'spear'; look.tabard = rng.pick(RICH); look.build = 1.1; }
   if (role === 'king' || role === 'queen') { look.crown = 1; look.robe = role === 'king' ? '#7a1a2a' : '#2a3a8a'; look.hat = 0; if (role === 'queen') look.hairStyle = 2; else look.beard = 1; }
@@ -242,8 +242,8 @@ export function citizensOf(L, b) {
   } else if (def.keeper) {
     add(def.keeper);
     if (b.type === 'inn') { add('server'); add('cook'); }
-    else if (b.type === 'guild') { const n = rng.int(4, 6); for (let i = 0; i < n; i++) add('adventurer'); }
-    else if (b.type === 'church') add('acolyte');
+    else if (b.type === 'guild') { add('quartermaster'); const n = rng.int(4, 6); for (let i = 0; i < n; i++) add('adventurer'); const col = GUILDS[guildOf(L)].col; for (const c of list) { c.look.tabard = col; if (c.role === 'quartermaster') c.look.apron = null; } }
+    else if (b.type === 'church') { add('acolyte'); if (L.type !== 'village' && L.type !== 'farm') { add('cleric'); if (L.type !== 'town') add('cleric'); } }
     else if (rng.chance(0.5)) add('apprentice');
   } else if (b.type === 'barn') add('farmhand');
   else {
@@ -255,6 +255,7 @@ export function citizensOf(L, b) {
   return list;
 }
 export function clearCitizens() { ccache.clear(); }
+export function clearCitizensOf(L) { for (const k of [...ccache.keys()]) if (Math.floor(k / 4096) === L.id) ccache.delete(k); }
 export function citizenById(world, id) {
   const [l, b, n] = id.split(':').map(Number);
   const L = world.locs[l], lay = getLayout(world, L);
@@ -273,7 +274,7 @@ export function whereabouts(c, hour) {
   const r = c.role;
   if (r === 'guard' && c.b < 0) return 'out';
   if (G.homebound && G.homebound.has(c.id) && r !== 'farmhand') return 'home';
-  if (BUILDINGS_KEEPERS.has(r) || r === 'king' || r === 'queen' || r === 'steward' || r === 'guard' || r === 'server' || r === 'cook' || r === 'acolyte') return 'home';
+  if (BUILDINGS_KEEPERS.has(r) || r === 'king' || r === 'queen' || r === 'steward' || r === 'guard' || r === 'server' || r === 'cook' || r === 'acolyte' || r === 'quartermaster' || r === 'cleric') return 'home';
   const o = (c.seed % 100) / 100;
   if (hour < 6 + o || hour >= 21 + o) return 'home';
   if (hour >= 18 + o && c.seed % 3 === 0) return 'inn';

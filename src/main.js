@@ -21,7 +21,7 @@ import './ui2.js';
 import { sfx, audio } from './audio.js';
 import { weaponCanvas } from './sprites.js';
 
-const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v5.save.', META_KEY = 'aerhelgard.v5.meta';
+const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v6.save.', META_KEY = 'aerhelgard.v6.meta';
 let renderer, scene, camera, fx, fxg, locked = false, hadLock = false, tickT = 0, target = null, last = 0;
 const mouse = { l: false, r: false }, input = { fwd: 0, strafe: 0, turn: 0, sprint: false, jump: false, attack: false, block: false };
 G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false, shadows: 1, clouds: true, view: 7 }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
@@ -54,6 +54,7 @@ function resize() {
 }
 G.fn.resize = resize;
 G.fn.factionCredit = (q) => F.credit(q);
+G.fn.factionPenalty = (fid, n) => { const st = F.fstate(fid), before = F.rankOf(fid); st.rep = Math.max(0, st.rep - n); const def = F.factionDef(fid); G.fn.msg('Your standing with the ' + def.name + ' falls.' + (F.rankOf(fid) < before ? ' You are reduced to ' + def.ranks[F.rankOf(fid)] + '.' : ''), 'bad'); };
 G.fn.applyGfx = () => { if (G.terrain) G.terrain.pcx = 1e9; };
 G.fn.saveOpts = () => { audio.vol = G.opts.vol; localStorage.setItem('aerhelgard.opts', JSON.stringify(G.opts)); };
 G.fn.msg = (t, c) => UI.msg(t, c); G.fn.banner = (t) => UI.banner(t); G.fn.flash = (c, d) => UI.flash(c, d); G.fn.sfx = sfx; G.fn.showEnemy = (e) => UI.showEnemy(e);
@@ -119,7 +120,7 @@ function buildWorld(seed, size) {
   G.world = new World(seed, size); G.terrain = new Terrain(scene, G.world); G.terrain.outdoor = true; G.phys = G.terrain; G.outPos = null; G.popInit = false;
   setSkyVisible(true);
 }
-function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, titles: {}, bp: {} }; }
+function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, faithOf: {}, infl: {}, inflF: {}, stash: {}, titles: {}, bp: {}, driftDay: 0, blessDay: -1 }; }
 
 G.fn.newGame = async function (cfg) {
   G.loading = true; UI.close(true); $('menu').classList.add('hidden');
@@ -301,7 +302,7 @@ function interact() {
     case 'bed': {
       const lv = G.space, key = lv.loc.id + ':' + lv.b.i;
       if (lv.b.type === 'inn') { if (t.guest && S.room && S.room.key === key && S.room.until > G.time) UI.rest(true); else G.fn.msg(t.guest ? 'Rent a room from the innkeeper first.' : 'This bed belongs to someone else.'); }
-      else G.fn.msg('This bed belongs to someone else.'); break; }
+      else { const lvL = lv.loc, fidB = lv.b.type === 'guild' ? guildOf(lvL) : lv.b.type === 'castle' ? 'k:' + lvL.id : null; if (fidB && F.hasPriv(fidB, 'bed')) UI.rest(true); else G.fn.msg(fidB ? 'These beds are for ranked members of the ' + F.factionDef(fidB).name + '.' : 'This bed belongs to someone else.'); } break; }
     case 'forge': UI.forge(); break;
     case 'alchemy': UI.alchemy(true); break;
     case 'board': UI.openQuestBoard({ c: citizensOf(G.space.loc, G.space.b)[0] }, G.space.loc, false); break;
@@ -373,7 +374,9 @@ function discover(L) {
   UI.banner(L.name); G.fn.msg('Discovered: ' + L.name + ' (' + LOC_TYPES[L.type].name + ')', 'quest'); sfx('quest');
 }
 function worldTick() { // twice a second: discovery, exploration fog
-  const P = G.player, W = G.world, S = G.save; if (G.space) return;
+  const P = G.player, W = G.world, S = G.save;
+  if (dayOf() > S.driftDay) { for (let d = Math.min(30, dayOf() - S.driftDay); d > 0; d--) F.dailyDrift(); S.driftDay = dayOf(); }
+  if (G.space) return;
   const L = W.locAt(P.pos.x, P.pos.z, 35); if (L) discover(L);
   const cx = Math.floor((P.pos.x + HALF) / 250), cz = Math.floor((P.pos.z + HALF) / 250);
   for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const x = cx + i, z = cz + j; if (x >= 0 && z >= 0 && x < W.eg && z < W.eg && i * i + j * j < 6) S.explored[z * W.eg + x] = 1; }

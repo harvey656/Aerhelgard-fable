@@ -7,7 +7,7 @@ import { describe, itemWeight } from './items.js';
 import { hash01, clamp } from './rng.js';
 import * as Q from './quests.js';
 import * as F from './factions.js';
-import { guildOf } from './settlement.js';
+import { guildOf, realmName } from './settlement.js';
 import { conversation, shopStock, buyPrice, sellPrice, wants } from './dialog.js';
 import { WORLD, HALF } from './world.js';
 import { getLayout } from './settlement.js';
@@ -231,6 +231,7 @@ UI.journal = function () {
     else if (sel) {
       const t = sel.state === 'active' && Q.questTarget(sel);
       det.append(h('h3', {}, sel.title), '\n' + (sel.main ? '[' + F.factionDef(sel.faction).name + ' - main mission ' + (sel.idx + 1) + ']\n\n' : '') + sel.desc + '\n\nGiven by ' + sel.giver.name + ' of ' + G.world.locs[sel.giver.loc].name + '.\nReward: ' + sel.gold + ' gold' + (sel.main ? '\nNo time limit.' : '') + (sel.steps && sel.state === 'active' ? '' : '\n\n» ' + Q.progressText(sel)) + (t && !G.space ? '\n\nNext: ' + t.name + ', ' + Q.whereText(G.player.pos, t) + ' of here.' : ''));
+      if (!sel.main && sel.state === 'active') det.append('\n\n', h('button', { onclick: () => { if (det.dataset.sure !== String(sel.id)) { det.dataset.sure = sel.id; G.fn.msg('Click again to abandon "' + sel.title + '".' + (sel.faction ? ' It will cost you standing with the ' + F.factionDef(sel.faction).name + '.' : '')); return; } Q.abandon(sel); sel = null; draw(); } }, 'Abandon'));
       if (sel.steps && sel.state === 'active') det.append('\n\n' + sel.steps.map((o, i) => (i < sel.step ? '✔ ' : i === sel.step ? '» ' : '· ') + (i <= sel.step ? Q.progressText(Object.assign({}, sel, { step: i })).replace(/^\(\d+\/\d+\) /, '') : '...')).join('\n'));
     } else det.append('No quests yet.\n\nKingdoms, guilds and churches each have a long story of main missions - speak with a castle steward, a guildmaster or a priest. Guild boards, the crown and ordinary folk offer shorter work, which also raises your standing.');
   };
@@ -282,7 +283,7 @@ UI.openQuestBoard = function (npc, L, royal) {
   const draw = () => {
     list.innerHTML = '';
     const offers = Q.offersFor(L, npc.c, royal ? 3 : 5, royal ? ['bounty', 'fetch'] : ['delivery', 'fetch', 'bounty', 'slay', 'gather', 'supply']);
-    if (royal) for (const o of offers) { o.gold = Math.round(o.gold * 1.8); o.title = 'Royal ' + o.title; }
+    if (royal) for (const o of offers) { o.gold = Math.round(o.gold * 1.8 * (F.hasPriv(fid, 'commission') ? 1.25 : 1)); o.title = 'Royal ' + o.title; }
     for (const o of offers) o.faction = fid;
     if (!offers.length) list.append(h('div', { style: 'padding:10px' }, 'There is no more work for now. New contracts are posted every few days.'));
     for (const o of offers) list.append(h('div', { style: 'padding:6px 8px;border-bottom:1px solid #8a7048' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', { style: 'font-weight:normal;font-size:23px;color:#6a1a10' }, o.title), h('span', {}, o.gold + ' gold')), h('div', { style: 'white-space:normal;line-height:1.05;margin:3px 0 5px' }, o.desc), h('button', { onclick: () => { Q.accept(o); draw(); } }, 'Accept')));
@@ -292,22 +293,36 @@ UI.openQuestBoard = function (npc, L, royal) {
 };
 
 // ----- trade -----
-UI.openTrade = function (npc, b, L) {
-  const P = G.player, c = npc.c, shop = shopStock(L, b), body = h('div', {});
+UI.openTrade = function (npc, b, L, custom) {
+  const P = G.player, c = npc.c, shop = custom ? custom.shop : shopStock(L, b), kind = custom ? custom.kind : b.type, disc = custom ? custom.disc : 1, body = h('div', {});
   const draw = () => {
     body.innerHTML = '';
     const left = h('div', { class: 'list parch', style: 'width:430px;height:52vh' }), right = h('div', { class: 'list parch', style: 'width:430px;height:52vh' });
     for (const it of shop.items.slice().sort(sortInv)) {
-      const p = buyPrice(it, c), r = itemRow(it, p + 'g', (e) => { const n = e.shiftKey ? Math.min(it.qty || 1, Math.floor(P.gold / p)) : 1; if (P.gold < p || n < 1) { G.fn.msg('You cannot afford that.', 'bad'); G.fn.sfx('deny'); return; } P.gold -= p * n; shop.gold += p * n; const one = Object.assign({}, it, it.stack ? { qty: n } : {}); if (it.stack && it.qty > n) it.qty -= n; else shop.items.splice(shop.items.indexOf(it), 1); P.addItem(one); P.gainXP('persuasion', 0.4 + p * n * 0.02); G.fn.sfx('coin'); UI.hideTip(); draw(); }, P.gold < p ? 'dim' : '');
+      const p = Math.max(1, Math.ceil(buyPrice(it, c) * disc)), r = itemRow(it, p + 'g', (e) => { const n = e.shiftKey ? Math.min(it.qty || 1, Math.floor(P.gold / p)) : 1; if (P.gold < p || n < 1) { G.fn.msg('You cannot afford that.', 'bad'); G.fn.sfx('deny'); return; } P.gold -= p * n; shop.gold += p * n; const one = Object.assign({}, it, it.stack ? { qty: n } : {}); if (it.stack && it.qty > n) it.qty -= n; else shop.items.splice(shop.items.indexOf(it), 1); P.addItem(one); P.gainXP('persuasion', 0.4 + p * n * 0.02); G.fn.sfx('coin'); UI.hideTip(); draw(); }, P.gold < p ? 'dim' : '');
       UI.tip(r, () => itemTip(it, 'Click to buy · Shift-click buys the stack')); left.append(r);
     }
-    for (const it of P.inv.filter((i) => wants(b.type, i)).sort(sortInv)) {
+    for (const it of P.inv.filter((i) => wants(kind, i)).sort(sortInv)) {
       const p = sellPrice(it, c), r = itemRow(it, p + 'g', (e) => { const n = e.shiftKey ? (it.qty || 1) : 1, tot = Math.min(p * n, shop.gold); if (shop.gold < p) { G.fn.msg(c.name.split(' ')[0] + ' cannot afford that.', 'bad'); return; } const sold = Object.assign({}, it, it.stack ? { qty: n } : {}); P.removeItem(it, n); P.gold += tot; shop.gold -= tot; const ex = sold.stack && shop.items.find((o) => o.sk === sold.sk); if (ex) ex.qty += n; else shop.items.push(sold); P.gainXP('persuasion', 0.4 + tot * 0.02); G.fn.sfx('coin'); UI.hideTip(); draw(); });
       UI.tip(r, () => itemTip(it, 'Click to sell · Shift-click sells the stack')); right.append(r);
     }
-    body.append(h('div', { class: 'col' }, h('div', {}, b.name + ' - ' + shop.gold + ' gold'), left), h('div', { class: 'col' }, h('div', {}, 'Your goods - ' + P.gold + ' gold   (' + P.carried().toFixed(0) + '/' + P.carryMax() + ' lb)'), right));
+    body.append(h('div', { class: 'col' }, h('div', {}, (custom ? custom.title + ' (member prices)' : b.name) + ' - ' + shop.gold + ' gold'), left), h('div', { class: 'col' }, h('div', {}, 'Your goods - ' + P.gold + ' gold   (' + P.carried().toFixed(0) + '/' + P.carryMax() + ' lb)'), right));
   };
   draw(); UI.window('Trading with ' + c.name, body, { name: 'trade', onClose: () => { G.talking = null; } });
+};
+
+// ----- strongbox: storage shared between a faction's halls -----
+UI.stash = function (title, box) {
+  const P = G.player, body = h('div', {});
+  const draw = () => {
+    body.innerHTML = '';
+    const left = h('div', { class: 'list parch', style: 'width:420px;height:52vh' }), right = h('div', { class: 'list parch', style: 'width:420px;height:52vh' });
+    for (const it of box.slice().sort(sortInv)) { const r = itemRow(it, itemWeight(it).toFixed(1) + ' lb', () => { box.splice(box.indexOf(it), 1); P.addItem(it); G.fn.sfx('pick'); UI.hideTip(); draw(); }); UI.tip(r, () => itemTip(it, 'Click to take')); left.append(r); }
+    if (!box.length) left.append(h('div', { class: 'note', style: 'padding:8px' }, 'Empty. Click an item on the right to store it.'));
+    for (const it of P.inv.filter((i) => i.type !== 'quest').sort(sortInv)) { const r = itemRow(it, itemWeight(it).toFixed(1) + ' lb', () => { const whole = Object.assign({}, it); P.removeItem(it, it.qty || 1); const ex = whole.stack && box.find((o) => o.sk === whole.sk); if (ex) ex.qty += whole.qty; else box.push(whole); G.fn.sfx('pick'); UI.hideTip(); draw(); }); UI.tip(r, () => itemTip(it, 'Click to store')); right.append(r); }
+    body.append(h('div', { class: 'col' }, h('div', {}, 'In the strongbox (' + box.length + ')'), left), h('div', { class: 'col' }, h('div', {}, 'Carried: ' + P.carried().toFixed(0) + '/' + P.carryMax() + ' lb'), right));
+  };
+  draw(); UI.window(title, body, { name: 'stash', onClose: () => { G.talking = null; } });
 };
 
 // ----- world map -----
@@ -361,6 +376,10 @@ UI.map = function () {
     if (sel) {
       const disc = S.discovered[sel.id], d = Math.hypot(sel.x - here.x, sel.z - here.z);
       info.append(h('h3', {}, sel.name), `\n${LOC_TYPES[sel.type].name}${sel.civ ? '' : '  ' + '☠'.repeat(sel.tier)}\n${BIOMES[sel.biome].name}\n${Q.whereText(here, sel)}\n${disc ? (sel.civ ? sel.count + ' buildings' : 'Visited') : 'Not yet visited'}\n\n`);
+      if (sel.civ) {
+        const big = sel.type === 'town' || sel.type === 'city' || sel.type === 'castle', bar = (o, defs) => Object.keys(o).sort((x, y) => o[y] - o[x]).filter((k) => o[k] >= 1).map((k) => '  ' + defs(k).name.replace('Circle of the ', '').replace('Church of the ', '').replace('Temple of the ', '').replace(' of the Mother', '') + ' ' + Math.round(o[k])).join('\n');
+        info.append(realmName(W, sel) + '\n' + (disc ? (big ? '\nGuild influence:\n' + bar(F.influenceAt(sel, 'guild'), F.factionDef) + '\n' : '') + '\nFaith:\n' + bar(F.influenceAt(sel, 'church'), F.factionDef) + '\n\n' : '\n'));
+      }
       if (disc) { const hrs = d / 1000 / 5; info.append(h('button', { onclick: () => G.fn.fastTravel(sel) }, 'Travel here'), `\n\nThe journey on foot takes about ${hrs < 1 ? Math.round(hrs * 60) + ' minutes' : hrs.toFixed(1) + ' hours'}.`); }
       else info.append('You must find your own way to a place before you can travel there swiftly.');
     } else info.append(h('h3', {}, 'Aerhelgard'), `\n${Object.keys(S.discovered).length} of ${W.locs.length} places discovered.\n\nDrag to pan, scroll to zoom. Zoom in on a visited settlement to see its streets and shops.\n\nClick a place for details. You can travel swiftly to any place you have already visited.\n\n■ settlement  ▲ dungeon\n? heard of, not yet seen\n◆ tracked quest`);
