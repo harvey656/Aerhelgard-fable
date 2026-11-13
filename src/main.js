@@ -10,7 +10,8 @@ import { Terrain } from './terrain.js';
 import { initSky, updateSky, interiorFog, setSkyVisible } from './sky.js';
 import { Player, EYE } from './player.js';
 import { getLayout, clearLayouts, clearCitizens, citizensOf, whereabouts, citizenById, guildOf, faithOf } from './settlement.js';
-import { genBuilding, genDungeon } from './interior.js';
+import { genBuilding, genDungeon, genHome, newHome, FURNITURE } from './interior.js';
+import { PROPS as PR, T as TX } from './art.js';
 import { NPC, Monster, updateEntities, clearEnts, shoot, aimEnemy, bolt, spawnLoot, removeBag } from './entities.js';
 import * as I from './items.js';
 import * as Q from './quests.js';
@@ -21,7 +22,7 @@ import './ui2.js';
 import { sfx, audio } from './audio.js';
 import { weaponCanvas } from './sprites.js';
 
-const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v6.save.', META_KEY = 'aerhelgard.v6.meta';
+const TIME_SCALE = 86400 / DAY_LEN, SAVE_KEY = 'aerhelgard.v7.save.', META_KEY = 'aerhelgard.v7.meta';
 let renderer, scene, camera, fx, fxg, locked = false, hadLock = false, tickT = 0, target = null, last = 0;
 const mouse = { l: false, r: false }, input = { fwd: 0, strafe: 0, turn: 0, sprint: false, jump: false, attack: false, block: false };
 G.opts = Object.assign({ pixel: 0, sens: 1, vol: 0.6, invert: false, shadows: 1, clouds: true, view: 7 }, JSON.parse(localStorage.getItem('aerhelgard.opts') || '{}'));
@@ -87,7 +88,7 @@ function bindInput() {
       if (UI.open === 'inv' && /^Digit[1-4]$/.test(e.code) && UI.hover && UI.hover.sk && ['potion', 'food', 'ingredient'].includes(UI.hover.type)) { P.quick[+e.code[5] - 1] = UI.hover.sk; G.fn.msg(UI.hover.name + ' set to quick slot ' + e.code[5] + '.'); return; }
     }
     switch (e.code) {
-      case 'Escape': if (!UI.open) UI.pause(); break;
+      case 'Escape': if (G.placing) cancelPlacing(); else if (!UI.open) UI.pause(); break;
       case 'Tab': case 'KeyI': toggle('inv', () => UI.inventory()); break;
       case 'KeyC': toggle('char', () => UI.character()); break;
       case 'KeyM': toggle('map', () => UI.map()); break;
@@ -95,7 +96,7 @@ function bindInput() {
       case 'KeyB': toggle('spells', () => UI.spellbook()); break;
       case 'F1': toggle('help', () => UI.help()); break;
       case 'KeyR': if (!UI.open) UI.rest(); break;
-      case 'KeyE': if (!UI.open) interact(); break;
+      case 'KeyE': if (!UI.open) { if (G.placing) placeFurniture(); else interact(); } break;
       case 'KeyQ': if (!UI.open) P.cast(); break;
       case 'KeyX': if (!UI.open) { P.sneak = !P.sneak; G.fn.msg(P.sneak ? 'You move quietly.' : 'You stand tall.'); } break;
       case 'F5': if (!UI.modal) saveGame('quick'); break;
@@ -120,7 +121,7 @@ function buildWorld(seed, size) {
   G.world = new World(seed, size); G.terrain = new Terrain(scene, G.world); G.terrain.outdoor = true; G.phys = G.terrain; G.outPos = null; G.popInit = false;
   setSkyVisible(true);
 }
-function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, factions: {}, guildOf: {}, faithOf: {}, infl: {}, inflF: {}, stash: {}, titles: {}, bp: {}, driftDay: 0, blessDay: -1 }; }
+function freshSave(seed, size = 48) { const eg = Math.round(size / 6) * 24; return { seed, size, discovered: {}, known: {}, harvested: {}, containers: {}, poi: {}, quests: [], qid: 0, taken: {}, npc: {}, shops: {}, cleared: {}, explored: new Uint8Array(eg * eg), rep: 0, tracked: 0, marker: null, room: null, lore: {}, homes: {}, factions: {}, guildOf: {}, faithOf: {}, infl: {}, inflF: {}, stash: {}, titles: {}, bp: {}, driftDay: 0, blessDay: -1 }; }
 
 G.fn.newGame = async function (cfg) {
   G.loading = true; UI.close(true); $('menu').classList.add('hidden');
@@ -202,8 +203,9 @@ function populateBuilding(lv) {
     for (let i = 0, n = 0; i < 60 && n < spots.length; i++) { const bb = r.pick(lay.buildings), c = r.pick(citizensOf(L, bb)); if (bb !== b && !used.has(c) && whereabouts(c, hour) === 'inn') { used.add(c); const s = spots[n++]; G.ents.push(new NPC(c, s.x, s.z, { room: s.room, range: 0 })); } }
   }
 }
-function enterLevel(lv, fromOutside) {
-  const P = G.player;
+function makeInterior(L, b) { const H = b.home && G.save.homes[L.id]; return H && H.owned ? genHome(G.world, L, b, H) : genBuilding(G.world, L, b); }
+function enterLevel(lv, fromOutside, quiet) {
+  const P = G.player; cancelPlacing();
   clearEnts();
   if (G.space) { scene.remove(G.space.group); G.space.dispose(); }
   else if (fromOutside) G.outPos = { x: P.pos.x, y: P.pos.y, z: P.pos.z };
@@ -216,7 +218,7 @@ function enterLevel(lv, fromOutside) {
     // a story villain is always home, even if this lair's usual master was slain recently
     if (named && !lv.mobs.some((m) => m.boss)) { const p = lv.randomFloor(rnd, lv.bossRoom) || lv.farthest, e = new Monster(named.o.boss, lv.cx(p[0]), lv.cx(p[1]), { idx: 999, tier: lv.loc.tier, mult: (0.75 + lv.loc.tier * 0.25) * 1.4 }); e.name = named.o.bossName; G.ents.push(e); }
   }
-  sfx('door'); UI.banner(lv.name);
+  if (!quiet) { sfx('door'); UI.banner(lv.name); }
 }
 function leaveLevel() {
   const P = G.player, lv = G.space; if (!lv) return;
@@ -229,7 +231,7 @@ function leaveLevel() {
 }
 function enterBuilding(t) {
   if (t.b.type === 'dungeon') { discover(t.loc); enterLevel(genDungeon(G.world, t.loc, 0), true); G.fn.msg('You enter ' + t.loc.name + '. ' + ['It seems quiet enough.', 'You sense some danger here.', 'This place is dangerous.', 'Death waits within for the unprepared.', 'Every instinct tells you to turn back.'][t.loc.tier - 1]); }
-  else enterLevel(genBuilding(G.world, t.loc, t.b), true);
+  else enterLevel(makeInterior(t.loc, t.b), true);
   saveGame('auto', true);
 }
 G.fn.onKill = function (m) {
@@ -274,6 +276,7 @@ function interact() {
     case 'npc': sfx('pick'); UI.talk(t); break;
     case 'loot': UI.loot(t.from === 'arrow' ? 'Arrow' : t.from, t.loot, () => { if (!t.loot.items.length && !t.loot.gold && G.bags.includes(t)) removeBag(t); }); break;
     case 'door': {
+      if (t.b.home) { const H = S.homes[t.loc.id]; if (H && H.owned) enterBuilding(t); else UI.buyHome(t.loc, t.b); break; }
       const h2 = hourOf(), home = t.b.type === 'house' || t.b.type === 'farmhouse';
       if (home && (h2 >= 22 || h2 < 6)) { const lock = 1 + (hash2(t.loc.id, t.b.i, 5) % 3); G.fn.msg('The door is locked for the night.'); UI.lockpick(lock, () => enterBuilding(t)); } else enterBuilding(t);
       break; }
@@ -301,8 +304,14 @@ function interact() {
     case 'relic': Q.takeRelic(t.quest); t.gone = true; t.prop[0] = 'pedestalEmpty'; G.space.rebuildProps(); break;
     case 'bed': {
       const lv = G.space, key = lv.loc.id + ':' + lv.b.i;
+      if (lv.home) { if (t.placed && G.keys.ShiftLeft) UI.furnMenu(t); else UI.rest(true); break; }
       if (lv.b.type === 'inn') { if (t.guest && S.room && S.room.key === key && S.room.until > G.time) UI.rest(true); else G.fn.msg(t.guest ? 'Rent a room from the innkeeper first.' : 'This bed belongs to someone else.'); }
       else { const lvL = lv.loc, fidB = lv.b.type === 'guild' ? guildOf(lvL) : lv.b.type === 'castle' ? 'k:' + lvL.id : null; if (fidB && F.hasPriv(fidB, 'bed')) UI.rest(true); else G.fn.msg(fidB ? 'These beds are for ranked members of the ' + F.factionDef(fidB).name + '.' : 'This bed belongs to someone else.'); } break; }
+    case 'ledger': UI.home(); break;
+    case 'homechest': { const st = G.space.home.store; UI.stash(t.label.replace(/^Open (your |the |chest: )?/, '').replace(/^./, (c) => c.toUpperCase()), st[t.key] || (st[t.key] = [])); break; }
+    case 'furn': UI.furnMenu(t); break;
+    case 'meal': { const H = G.space.home; if (H.mealDay === dayOf()) return G.fn.msg('You have already eaten well today.'); H.mealDay = dayOf(); P.hp = Math.min(P.maxHp(), P.hp + P.maxHp() * 0.5); P.st = P.maxSt(); P.addBuff('regen', 1.2, 1800, 'Home-cooked Meal'); sfx('drink'); G.fn.msg('You cook and eat a proper meal. You feel restored.', 'good'); break; }
+    case 'study': { const H = G.space.home; if (H.studyDay === dayOf()) return G.fn.msg('Your eyes are tired. Study again tomorrow.'); H.studyDay = dayOf(); G.time += 3600; const sk = SKILLS.slice().sort((a, b) => P.skills[a.id].lvl - P.skills[b.id].lvl)[0]; G.fn.msg('You spend an hour with your books on ' + sk.name + '.', 'good'); P.gainXP(sk.id, 22 + P.skills[sk.id].lvl * 0.4); break; }
     case 'forge': UI.forge(); break;
     case 'alchemy': UI.alchemy(true); break;
     case 'board': UI.openQuestBoard({ c: citizensOf(G.space.loc, G.space.b)[0] }, G.space.loc, false); break;
@@ -322,6 +331,53 @@ G.fn.dropItem = function (it, n) {
   const near = G.bags.find((b) => b.from === 'your pack' && Math.hypot(b.x - x, b.z - z) < 1.5);
   if (near) near.loot.items.push(one); else spawnLoot(x, z, { items: [one], gold: 0 }, 'your pack');
 };
+
+// ---------- player housing ----------
+G.fn.buyHome = function (L, b, price) {
+  const P = G.player; if (P.gold < price) { G.fn.msg('You cannot afford it.', 'bad'); sfx('deny'); return false; }
+  P.gold -= price; G.save.homes[L.id] = newHome(L, P.name); b.name = G.save.homes[L.id].name;
+  UI.banner('Home Owner'); G.fn.msg('The deed is signed. ' + b.name + ' in ' + L.name + ' is yours.', 'perk'); sfx('level'); saveGame('auto', true); return true;
+};
+// rebuild the house around the player after something in it changed
+G.fn.refreshHome = function () {
+  const lv = G.space; if (!lv || !lv.home) return; const P = G.player, pos = P.pos.clone(), yaw = P.yaw, pitch = P.pitch, oz = lv.org.z;
+  lv.b.name = lv.home.name;
+  enterLevel(genHome(G.world, lv.loc, lv.b, lv.home), false, true);
+  P.pos.set(pos.x, 0, pos.z + (G.space.org.z - oz)); P.yaw = yaw; P.pitch = pitch;
+  if (G.space.solidAt(P.pos.x, P.pos.z)) P.pos.set(G.space.spawn.x, 0, G.space.spawn.z);
+};
+function cancelPlacing() {
+  const pl = G.placing; if (!pl) return; G.placing = null;
+  G.entGroup.remove(pl.mesh); pl.mesh.geometry.dispose(); pl.mesh.material.dispose();
+  // a piece being moved goes back where it was if the move is called off
+  if (pl.move && !pl.done && G.space && G.space.home && !G.space.home.furn.includes(pl.move)) { G.space.home.furn.push(pl.move); G.fn.refreshHome(); }
+}
+G.fn.startPlacing = function (type, move) {
+  cancelPlacing(); const r = PR[type], g = new THREE.PlaneGeometry(1, 1); g.translate(0, 0.5, 0);
+  const uv = g.attributes.uv; uv.setXY(0, r.u0, r.v1); uv.setXY(1, r.u1, r.v1); uv.setXY(2, r.u0, r.v0); uv.setXY(3, r.u1, r.v0);
+  const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: TX.props, alphaTest: 0.3, transparent: true, opacity: 0.7, side: THREE.DoubleSide, fog: false }));
+  mesh.scale.set(r.w, r.h, 1); G.entGroup.add(mesh);
+  G.placing = { type, mesh, ok: false, x: 0, z: 0, move };
+};
+function updatePlacing() {
+  const pl = G.placing, lv = G.space, P = G.player; if (!lv || !lv.home) return cancelPlacing();
+  camera.getWorldDirection(fwdV);
+  let d = fwdV.y < -0.08 ? Math.min(6, camera.position.y / -fwdV.y) : 4.5; d = Math.max(1.4, d);
+  const hl = Math.hypot(fwdV.x, fwdV.z) || 1, flat = fwdV.y < -0.08 ? d * hl : d;
+  pl.x = Math.round((camera.position.x + fwdV.x / hl * flat) * 4) / 4; pl.z = Math.round((camera.position.z + fwdV.z / hl * flat) * 4) / 4;
+  pl.ok = !lv.solidAt(pl.x, pl.z) && !lv.solidAt(pl.x + 0.3, pl.z) && !lv.solidAt(pl.x - 0.3, pl.z) && Math.hypot(pl.x - lv.spawn.x, pl.z - lv.spawn.z) > 1.3 && Math.hypot(pl.x - P.pos.x, pl.z - P.pos.z) > 0.8;
+  pl.mesh.position.set(pl.x, pl.type === 'banner' ? 0.9 : 0, pl.z); pl.mesh.rotation.y = Math.atan2(camera.position.x - pl.x, camera.position.z - pl.z);
+  pl.mesh.material.color.setRGB(pl.ok ? 0.7 : 1, pl.ok ? 1 : 0.3, pl.ok ? 0.7 : 0.3);
+  $('prompt').innerHTML = '<small>[E]</small> Place ' + FURNITURE[pl.type][0] + (pl.move ? '' : ' (' + FURNITURE[pl.type][1] + ' gold)') + ' &nbsp; <small>[Esc]</small> Cancel' + (pl.ok ? '' : '<br><small>It will not fit there.</small>');
+}
+function placeFurniture() {
+  const pl = G.placing, lv = G.space, P = G.player, H = lv.home, F2 = FURNITURE[pl.type]; if (!pl.ok) return sfx('deny');
+  if (!pl.move && P.gold < F2[1]) { G.fn.msg('You cannot afford that.', 'bad'); return cancelPlacing(); }
+  if (!pl.move) P.gold -= F2[1];
+  const f = pl.move || { t: pl.type }; f.x = pl.x - lv.org.x; f.z = pl.z - lv.org.z; if (!pl.move) H.furn.push(f); else if (!H.furn.includes(f)) H.furn.push(f);
+  const again = !pl.move && ['chair', 'candle', 'crate', 'barrel', 'sack', 'bench'].includes(pl.type) ? pl.type : null;
+  pl.done = true; cancelPlacing(); sfx('equip'); G.fn.refreshHome(); if (again && P.gold >= F2[1]) G.fn.startPlacing(again);
+}
 
 // ---------- rest & travel ----------
 G.fn.rest = function (hours, bed) {
@@ -416,7 +472,7 @@ async function loadGame(slot) {
     G.outPos = d.outPos; const o = d.outPos || { x: L.x, z: L.z };
     G.terrain.loadAround(o.x, o.z);
     G.mode = 'play';
-    enterLevel(d.space.kind === 'building' ? genBuilding(G.world, L, lay.buildings[d.space.b]) : genDungeon(G.world, L, d.space.floor), false);
+    enterLevel(d.space.kind === 'building' ? makeInterior(L, lay.buildings[d.space.b]) : genDungeon(G.world, L, d.space.floor), false);
     P.pos.copy(pos); P.yaw = yaw; if (G.space.solidAt(P.pos.x, P.pos.z)) P.pos.set(G.space.spawn.x, 0, G.space.spawn.z);
   } else { G.terrain.loadAround(P.pos.x, P.pos.z); P.pos.y = Math.max(P.pos.y, G.terrain.groundAt(P.pos.x, P.pos.z)); }
   beginPlay(); G.fn.msg('Game loaded.', 'good');
@@ -464,8 +520,9 @@ function loop(now) {
   camera.position.set(P.pos.x, cy, P.pos.z); camera.rotation.set(P.pitch, P.yaw, P.hurtT > 0 ? P.hurtT * 0.1 : 0);
   if (G.space) interiorFog(scene, G.space);
   else { G.terrain.update(P.pos.x, P.pos.z, 4, isNight()); updateSky(dt, scene, camera, false); }
-  target = paused ? null : lookTarget();
+  target = paused || G.placing ? null : lookTarget();
   UI.hud(dt, target);
+  if (G.placing && !paused) updatePlacing();
   drawHands(dt);
   renderer.render(scene, camera);
 }

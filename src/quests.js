@@ -29,7 +29,7 @@ export function makeOffer(L, giver, seed, kinds) {
   if (type === 'delivery') {
     const locs = W.locs.filter((l) => l.civ && l !== L).map((l) => [Math.hypot(l.x - L.x, l.z - L.z), l]).filter((e) => e[0] < 10000).sort((a, b) => a[0] - b[0]).slice(0, 6);
     if (!locs.length) return null;
-    const [d, T] = rng.pick(locs), lay = getLayout(W, T), b = rng.pick(lay.buildings.filter((x) => x.type !== 'barn' && x.type !== 'castle')), c = citizensOf(T, b)[0];
+    const [d, T] = rng.pick(locs), lay = getLayout(W, T), b = rng.pick(lay.buildings.filter((x) => x.type !== 'barn' && x.type !== 'castle' && !x.home)), c = citizensOf(T, b)[0];
     Object.assign(q, { title: 'Parcel for ' + c.name, target: { id: c.id, name: c.name, loc: T.id, b: b.i, bname: b.name }, tloc: T.id, gold: Math.round((35 + d / 60) * mult),
       desc: `Carry a sealed parcel to ${c.name} at ${b.name} in ${T.name}, ${whereText(L, T)} of ${L.name}. The recipient will pay you on delivery.` });
   } else if (type === 'fetch' || type === 'bounty') {

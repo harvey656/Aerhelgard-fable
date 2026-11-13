@@ -7,6 +7,8 @@ import { humanSheet, sheetFrameCanvas, itemIcon } from './sprites.js';
 import { RNG, rnd, clamp, strSeed } from './rng.js';
 import * as I from './items.js';
 import { personName } from './names.js';
+import { HOME_EXT, FURNITURE } from './interior.js';
+import { HOME_PRICE } from './settlement.js';
 
 const SKINS = ['#f4d4b4', '#f0c8a0', '#e0b088', '#c89068', '#a87048', '#7a5030', '#5a3a22'];
 const HAIRS = ['#1a1a1a', '#2a1a10', '#4a3018', '#6a4a20', '#a87830', '#d8b858', '#8a3a18', '#b0b0b0', '#e8e8e8'];
@@ -258,4 +260,48 @@ UI.alchemy = function (station) {
     body.append(list, res);
   };
   draw(); UI.window(station ? 'Alchemy Bench' : 'Alchemy', body, { name: 'alchemy' });
+};
+
+// ----- player housing -----
+UI.buyHome = function (L, b) {
+  const P = G.player, price = HOME_PRICE[L.type], owned = Object.keys(G.save.homes).filter((k) => G.save.homes[k].owned).length;
+  const body = h('div', {}, h('div', { class: 'col', style: 'width:520px' },
+    h('div', { class: 'parch', style: 'padding:10px 14px;white-space:normal;line-height:1.05' }, h('h3', {}, 'For Sale'), h('div', { style: 'margin:6px 0' }, `A sound house in ${L.name}, with a hearth, a bed and a strong chest. It may be furnished to the owner's taste and enlarged with a bedroom, storeroom, kitchen, workshop, laboratory or study.`),
+      h('div', {}, `Houses are rare: only ${G.world.homes.length} stand for sale in all the land. You own ${owned}.`), h('div', { style: 'margin-top:8px;font-size:24px;color:#6a1a10' }, 'Price: ' + price + ' gold'), h('div', { class: 'note' }, 'You have ' + P.gold + ' gold.')),
+    h('div', { class: 'row' }, h('button', { disabled: P.gold >= price ? null : '', onclick: () => { if (G.fn.buyHome(L, b, price)) UI.close(); } }, 'Buy the house'), h('button', { onclick: () => UI.close() }, 'Not now'))));
+  UI.window('A Notice on the Door', body, { name: 'buyhome' });
+};
+UI.home = function () {
+  const lv = G.space; if (!lv || !lv.home) return; const H = lv.home, P = G.player, body = h('div', {}); let tab = 0, nameEl;
+  const draw = () => {
+    body.innerHTML = '';
+    const tabs = h('div', { class: 'tabs' }, ['Furniture', 'Extensions', 'Style'].map((n, i) => h('button', { class: tab === i ? 'on' : '', onclick: () => { tab = i; draw(); } }, n)));
+    const list = h('div', { class: 'list parch', style: 'width:600px;height:46vh' });
+    if (tab === 0) {
+      list.append(h('div', { class: 'note', style: 'padding:4px;white-space:normal' }, 'Choose a piece, then look where you want it and press E. Look at a placed piece and press E to move or sell it (hold Shift for beds).'));
+      for (const k in FURNITURE) { const F = FURNITURE[k], ok = P.gold >= F[1];
+        const r = h('div', { class: 'item' + (ok ? '' : ' dim'), onclick: () => { if (!ok) return G.fn.sfx('deny'); UI.close(true); G.fn.startPlacing(k); G.fn.grabPointer(); } }, h('span', { class: 'n' }, F[0] + (F[4] ? ' - ' + F[4] : '')), h('span', { class: 'q' }, F[1] + ' gold')); list.append(r); }
+    } else if (tab === 1) {
+      for (const k in HOME_EXT) { const E = HOME_EXT[k], has = H.ext.includes(k), ok = !has && P.gold >= E.cost;
+        list.append(h('div', { style: 'padding:6px 8px;border-bottom:1px solid #8a7048;white-space:normal' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', { style: 'font-weight:normal;font-size:23px;color:#6a1a10' }, E.name), h('span', {}, has ? 'Built' : E.cost + ' gold')), h('div', { style: 'margin:2px 0 5px' }, E.desc), has ? null : h('button', { disabled: ok ? null : '', onclick: () => { P.gold -= E.cost; H.ext.push(k); G.fn.sfx('forge'); G.fn.msg('The builders finish your new ' + E.name.toLowerCase() + '.', 'good'); UI.close(true); G.fn.refreshHome(); UI.home(); } }, 'Build'))); }
+    } else {
+      nameEl = h('input', { type: 'text', maxlength: 28, value: H.name });
+      const opt = (label, cur, opts, set) => h('div', { class: 'kv', style: 'padding:4px' }, label, h('span', { class: 'tabs' }, opts.map(([v, n]) => h('button', { class: cur === v ? 'on' : '', onclick: () => { if (cur === v) return; if (P.gold < 150) return G.fn.msg('Redecorating costs 150 gold.', 'bad'); P.gold -= 150; set(v); UI.close(true); G.fn.refreshHome(); UI.home(); } }, n))));
+      list.append(h('div', { class: 'kv', style: 'padding:4px' }, 'Name of the house', h('span', { class: 'row' }, nameEl, h('button', { onclick: () => { H.name = nameEl.value.trim() || H.name; lv.b.name = H.name; lv.name = H.name; draw(); } }, 'Rename'))),
+        opt('Walls (150 gold)', H.wall, [['plasterin', 'Plaster'], ['woodwall', 'Timber'], ['stone', 'Stone'], ['cryptwall', 'Dressed stone']], (v) => { H.wall = v; }),
+        opt('Floors (150 gold)', H.floor, [[0, 'Boards'], [1, 'Flagstones'], [2, 'Carpet']], (v) => { H.floor = v; }),
+        h('div', { class: 'note', style: 'padding:8px 4px;white-space:normal' }, 'Rooms: ' + (1 + H.ext.length) + ' · furniture placed: ' + H.furn.length + ' · your chests here hold ' + Object.values(H.store).reduce((n, a) => n + a.length, 0) + H.furn.reduce((n, f) => n + (f.items ? f.items.length : 0), 0) + ' kinds of item.'));
+    }
+    body.append(h('div', { class: 'col' }, tabs, list, h('div', { class: 'note' }, 'Gold: ' + P.gold)));
+  };
+  draw(); UI.window(H.name, body, { name: 'home' });
+};
+UI.furnMenu = function (t) {
+  const lv = G.space, H = lv.home, f = H.furn[t.idx], F = FURNITURE[f.t], P = G.player, refund = Math.floor(F[1] / 2);
+  const body = h('div', {}, h('div', { class: 'col', style: 'width:320px' },
+    f.t === 'chest' ? h('button', { onclick: () => { UI.stash(F[0], f.items || (f.items = [])); } }, 'Open') : null,
+    h('button', { onclick: () => { UI.close(true); H.furn.splice(t.idx, 1); G.fn.refreshHome(); G.fn.startPlacing(f.t, f); G.fn.grabPointer(); } }, 'Move'),
+    h('button', { onclick: () => { if (f.items && f.items.length) return G.fn.msg('Empty it first.', 'bad'); H.furn.splice(t.idx, 1); P.gold += refund; G.fn.sfx('coin'); UI.close(true); G.fn.refreshHome(); G.fn.grabPointer(); } }, 'Sell for ' + refund + ' gold'),
+    h('button', { onclick: () => UI.close() }, 'Leave it')));
+  UI.window(F[0], body, { name: 'furn' });
 };

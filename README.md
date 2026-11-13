@@ -85,6 +85,12 @@ smelting need an anvil at a smithy; only rough repairs can be done in the field.
 its blueprint and the treatise for its metal - smiths sell a few, the rest are found - and metals better than
 steel are never sold, only mined. Mines are a new kind of place, richest in the mountains, with finer ore deeper down.
 
+**Player housing.** Between four and eight settlements in each world (the starting town, then places far apart)
+have a house for sale. Read the notice on its door to buy it. Inside you get a bed, a storage chest and a table
+for managing the house: place and move furniture piece by piece (extra storage chests and beds are functional,
+candles and crystals light the room), build extension rooms (bedroom, storeroom, kitchen, workshop with forge and
+anvil, laboratory with a full alchemy bench, study), change wall and floor styles, and rename it.
+
 **Also.** Real-time melee, archery and three schools of magic; lock-picking minigame; alchemy from shared
 ingredient effects; smelting, forging, tempering and repair; mining; day/night cycle; resting and ambushes;
 a full-scale map with fog of war, auto-pins and town plans; fast travel to visited places; save slots.

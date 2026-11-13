@@ -99,7 +99,7 @@ UI.promptFor = function (t) {
   const k = '<small>[E]</small> ';
   switch (t.kind) {
     case 'npc': return k + 'Talk to ' + esc(t.name);
-    case 'door': return k + (t.b.type === 'dungeon' ? 'Enter ' : 'Enter ') + esc(t.b.name) + (t.b.type !== 'dungeon' && BUILDINGS[t.b.type].sign ? '<br><small>' + BUILDINGS[t.b.type].name + '</small>' : t.b.type === 'dungeon' ? '<br><small>' + LOC_TYPES[t.b.dtype].name + ' · danger ' + '☠'.repeat(t.loc.tier) + '</small>' : '');
+    case 'door': if (t.b.home && !(G.save.homes[t.loc.id] || {}).owned) return k + 'Read the notice<br><small>House for sale</small>'; return k + (t.b.type === 'dungeon' ? 'Enter ' : 'Enter ') + esc(t.b.name) + (t.b.type !== 'dungeon' && BUILDINGS[t.b.type].sign ? '<br><small>' + BUILDINGS[t.b.type].name + '</small>' : t.b.type === 'dungeon' ? '<br><small>' + LOC_TYPES[t.b.dtype].name + ' · danger ' + '☠'.repeat(t.loc.tier) + '</small>' : '');
     case 'forage': return k + 'Gather';
     case 'chest': return k + 'Open chest' + (t.lock && !(G.save.containers[t.id] || {}).unlocked ? '<br><small>Locked (level ' + t.lock + ')</small>' : '');
     case 'ldoor': return k + 'Open door<br><small>Locked (level ' + t.lock + ')</small>';
@@ -363,6 +363,7 @@ UI.map = function () {
         if (!disc) { g.fillStyle = '#1a1008'; g.fillText('?', x, y + 5); }
       }
       if (mapZoom > 0.035 || L.type === 'castle' || L.type === 'city' || L === sel) { g.fillStyle = '#1a1008'; g.fillText(L.name, x, y - r - 4); }
+      if (L.home && disc) { g.fillStyle = (S.homes[L.id] || {}).owned ? '#1a7a2a' : '#7a5a1a'; g.font = '22px VT323'; g.fillText('⌂', x + r + 8, y + 6); g.font = '18px VT323'; }
       pins.push([x, y, L]);
     }
     const q = S.quests.find((x) => x.id === S.tracked && x.state === 'active'), t = q && Q.questTarget(q);
@@ -376,13 +377,14 @@ UI.map = function () {
     if (sel) {
       const disc = S.discovered[sel.id], d = Math.hypot(sel.x - here.x, sel.z - here.z);
       info.append(h('h3', {}, sel.name), `\n${LOC_TYPES[sel.type].name}${sel.civ ? '' : '  ' + '☠'.repeat(sel.tier)}\n${BIOMES[sel.biome].name}\n${Q.whereText(here, sel)}\n${disc ? (sel.civ ? sel.count + ' buildings' : 'Visited') : 'Not yet visited'}\n\n`);
+      if (sel.home && disc) info.append(((S.homes[sel.id] || {}).owned ? 'You own a house here: ' + S.homes[sel.id].name : 'A house is for sale here.') + '\n\n');
       if (sel.civ) {
         const big = sel.type === 'town' || sel.type === 'city' || sel.type === 'castle', bar = (o, defs) => Object.keys(o).sort((x, y) => o[y] - o[x]).filter((k) => o[k] >= 1).map((k) => '  ' + defs(k).name.replace('Circle of the ', '').replace('Church of the ', '').replace('Temple of the ', '').replace(' of the Mother', '') + ' ' + Math.round(o[k])).join('\n');
         info.append(realmName(W, sel) + '\n' + (disc ? (big ? '\nGuild influence:\n' + bar(F.influenceAt(sel, 'guild'), F.factionDef) + '\n' : '') + '\nFaith:\n' + bar(F.influenceAt(sel, 'church'), F.factionDef) + '\n\n' : '\n'));
       }
       if (disc) { const hrs = d / 1000 / 5; info.append(h('button', { onclick: () => G.fn.fastTravel(sel) }, 'Travel here'), `\n\nThe journey on foot takes about ${hrs < 1 ? Math.round(hrs * 60) + ' minutes' : hrs.toFixed(1) + ' hours'}.`); }
       else info.append('You must find your own way to a place before you can travel there swiftly.');
-    } else info.append(h('h3', {}, 'Aerhelgard'), `\n${Object.keys(S.discovered).length} of ${W.locs.length} places discovered.\n\nDrag to pan, scroll to zoom. Zoom in on a visited settlement to see its streets and shops.\n\nClick a place for details. You can travel swiftly to any place you have already visited.\n\n■ settlement  ▲ dungeon\n? heard of, not yet seen\n◆ tracked quest`);
+    } else info.append(h('h3', {}, 'Aerhelgard'), `\n${Object.keys(S.discovered).length} of ${W.locs.length} places discovered.\n\nDrag to pan, scroll to zoom. Zoom in on a visited settlement to see its streets and shops.\n\nClick a place for details. You can travel swiftly to any place you have already visited.\n\n■ settlement  ▲ dungeon\n⌂ house for sale (green: yours)\n? heard of, not yet seen\n◆ tracked quest`);
   };
   let drag = null;
   cv.addEventListener('mousedown', (e) => { drag = [e.clientX, e.clientY, mapCx, mapCz, false]; });

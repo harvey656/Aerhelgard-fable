@@ -20,6 +20,8 @@ export function getLayout(world, L) {
 }
 export function clearLayouts() { cache.clear(); }
 export function clearLayout(id) { cache.delete(id); }
+export const HOME_PRICE = { village: 1200, town: 2500, city: 5000, castle: 9000 };
+export function homeName(L) { const H = G.save && G.save.homes && G.save.homes[L.id]; return H && H.owned ? H.name : 'House for Sale'; }
 // Which guild keeps the hall in this settlement, and which faith its churches follow
 const GIDS = Object.keys(GUILDS), FIDS = Object.keys(FAITHS);
 export function guildOf(L) { const o = G.save && G.save.guildOf && G.save.guildOf[L.id]; return o || GIDS[L.guild !== undefined ? L.guild : hash2(L.id, 31, L.seed) % GIDS.length]; }
@@ -153,8 +155,10 @@ function genCiv(world, L) {
   // a guild that has grown its influence here flies its banners on the square
   if (G.save && G.save.guildOf && G.save.guildOf[L.id]) for (const [dx, dz] of [[-4, -3], [4, -3], [-4, 4], [4, 4]]) lay.props.push({ type: 'banner', x: L.x + dx, z: L.z + dz, solid: 0.2 });
   // names & owners
+  if (L.home) { const hs = lay.buildings.filter((x) => x.type === 'house'); if (hs.length > 1) { const hb = hs[hs.length - 1]; hb.home = true; hb.h = Math.max(hb.h, 6); hb.wall = L.biome === B_DESERT ? 3 : 1; hb.roofTex = L.biome === B_DESERT ? 'flat' : 'slate'; lay.home = hb; } }
   for (const b of lay.buildings) {
     const def = BUILDINGS[b.type];
+    if (b.home) { b.pop = 0; b.name = homeName(L); continue; }
     const cs = citizensOf(L, b);
     b.pop = cs.length;
     if (b.type === 'guild') b.name = GUILDS[guildOf(L)].hall;
@@ -226,6 +230,7 @@ export function citizensOf(L, b) {
   const key = L.id * 4096 + b.i;
   let list = ccache.get(key);
   if (list) return list;
+  if (b.home) { ccache.set(key, []); return ccache.get(key); }
   const rng = new RNG(hash2(L.id, b.i, L.seed ^ 0xc171));
   list = [];
   const add = (role, female) => {

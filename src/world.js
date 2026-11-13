@@ -219,6 +219,10 @@ export class World {
     // starting town + make its nearest dungeons gentle
     const towns = this.locs.filter((l) => l.type === 'town');
     this.start = towns.length ? towns[rng.int(0, towns.length - 1)] : this.locs.find((l) => l.civ);
+    // a handful of settlements have a house for sale: the starting town, then the places farthest from each other
+    { const want = clamp(Math.round(6 * area + 2), 4, 8), cand = this.locs.filter((l) => l.type === 'town' || l.type === 'city' || l.type === 'castle' || (l.type === 'village' && l.count >= 9)), homes = [this.start];
+      while (homes.length < want && homes.length < cand.length) { let best = null, bd = -1; for (const l of cand) { if (homes.includes(l)) continue; let d = 1e18; for (const h of homes) d = Math.min(d, Math.hypot(h.x - l.x, h.z - l.z)); d *= l.type === 'village' ? 0.7 : 1; if (d > bd) { bd = d; best = l; } } homes.push(best); }
+      for (const l of homes) l.home = true; this.homes = homes; }
     const near = this.nearest(this.start.x, this.start.z, (l) => !l.civ, 3);
     near.forEach((l, i) => { l.tier = i < 2 ? 1 : 2; });
   }

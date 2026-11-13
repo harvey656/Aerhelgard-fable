@@ -297,6 +297,62 @@ function furnishBuilding(lv, rng, b, main) {
   }
 }
 
+// ---------- Player housing ----------
+export const HOME_EXT = {
+  bedroom: { name: 'Bedroom', cost: 900, desc: 'A proper bed in a room of its own, with a wardrobe chest.' },
+  storeroom: { name: 'Storeroom', cost: 1200, desc: 'Three large chests for sorting your loot.' },
+  kitchen: { name: 'Kitchen', cost: 800, desc: 'Once a day, cook a meal that restores you and speeds your recovery.' },
+  workshop: { name: 'Workshop', cost: 2500, desc: 'Your own forge and anvil: smelt, forge and temper at home.' },
+  laboratory: { name: 'Laboratory', cost: 2000, desc: 'A full alchemy bench with every tool to hand.' },
+  study: { name: 'Study', cost: 1500, desc: 'Once a day, an hour among your books sharpens your weakest skill.' },
+};
+// [name, price, solid radius, light radius, description, use]
+export const FURNITURE = {
+  table: ['Table', 40, 0.7, 0], chair: ['Chair', 15, 0, 0], bench: ['Bench', 25, 0.5, 0], bed: ['Bed', 120, 0.7, 0, 'You can sleep in it.'], shelf: ['Bookshelf', 60, 0.5, 0],
+  chest: ['Storage Chest', 90, 0.5, 0, 'Holds its own separate store of items.'], crate: ['Crate', 20, 0.6, 0], barrel: ['Barrel', 20, 0.5, 0], sack: ['Sack', 8, 0, 0], counter: ['Counter', 50, 0.75, 0],
+  candle: ['Candelabrum', 30, 0, 9, 'Lights the room.'], crystal: ['Glow-crystal', 150, 0, 8, 'A soft light that never burns out.'], banner: ['Banner', 60, 0, 0], rack: ['Weapon Rack', 70, 0.4, 0], urn: ['Urn', 25, 0, 0],
+  cauldron: ['Cauldron', 60, 0.6, 5], pedestalEmpty: ['Pedestal', 80, 0.4, 0], throne: ['Gilded Chair', 900, 0.6, 0],
+};
+export function newHome(L, owner) { return { owned: true, name: owner.split(' ')[0] + '\'s House', ext: [], furn: [], store: { main: [] }, wall: 'plasterin', floor: 0, mealDay: -1, studyDay: -1 }; }
+// Extension rooms are a fixed 3 tiles wide in a row behind the main room, so adding one never moves what is already placed.
+export function genHome(world, L, b, H) {
+  const T = 2.5, n = H.ext.length, mainD = 5, bd = 3, innerW = Math.max(7, n * 4 - 1), W = innerW + 2, Hh = mainD + (n ? bd + 1 : 0) + 2;
+  const lv = new Level(W, Hh, T, 3);
+  lv.kind = 'building'; lv.loc = L; lv.b = b; lv.home = H; lv.name = H.name; lv.fogFar = 36;
+  const mz1 = Hh - 2, mz0 = mz1 - mainD + 1, fm = H.floor || 0;
+  const main = carve(lv, 1, mz0, W - 2, mz1, fm); main.use = 'main'; lv.rooms.push(main);
+  lv.org = { x: T, z: mz0 * T }; // furniture is stored relative to this corner
+  const X = (t) => lv.cx(t), back = mz0 * T + 0.12;
+  for (const tx of [2, 6]) lv.addProp('torch', X(tx), back, { y: 1.35, light: 10, lv: 0.6 });
+  lv.addProp('table', X(2), X(mz1) + 0.5, { solid: 0.6, inter: { kind: 'ledger', label: 'Manage your house' } });
+  lv.addProp('chest', X(6), X(mz1) + 0.6, { solid: 0.5, inter: { kind: 'homechest', key: 'main', label: 'Open your chest' } });
+  if (!H.ext.includes('bedroom')) lv.addProp('bed', X(1) + 0.2, X(mz0) - 0.4, { solid: 0.7, inter: { kind: 'bed', label: 'Sleep' } });
+  H.ext.forEach((id, i) => {
+    const x0 = 1 + i * 4, z1 = mz0 - 2, z0 = z1 - bd + 1, r = carve(lv, x0, z0, x0 + 2, z1, id === 'workshop' || id === 'kitchen' ? 1 : fm); r.use = id; lv.rooms.push(r);
+    lv.set(x0 + 1, mz0 - 1, FLOOR); lv.floorMat[(mz0 - 1) * W + x0 + 1] = fm;
+    const cx = X(x0 + 1), top = z0 * T + 0.5, left = x0 * T + 0.55, right = (x0 + 3) * T - 0.55;
+    if (id === 'bedroom') { lv.addProp('bed', cx, top + 0.1, { solid: 0.7, inter: { kind: 'bed', label: 'Sleep' } }); lv.addProp('chest', right, X(z0 + 1), { solid: 0.5, inter: { kind: 'homechest', key: 'wardrobe', label: 'Open the wardrobe chest' } }); lv.addProp('candle', left, X(z0), { light: 8, lv: 0.5 }); }
+    else if (id === 'storeroom') { ['Arms', 'Supplies', 'Treasures'].forEach((nm, k) => lv.addProp('chest', left + 0.2 + k * 2.6, top + 0.1, { solid: 0.5, inter: { kind: 'homechest', key: 'store' + k, label: 'Open chest: ' + nm } })); lv.addProp('crate', right, X(z1), { solid: 0.5 }); lv.lights.push({ x: cx, z: X(z0 + 1), r: 8, v: 0.4 }); }
+    else if (id === 'kitchen') { lv.addProp('cauldron', cx, top, { solid: 0.6, light: 8, lv: 0.5, inter: { kind: 'meal', label: 'Cook a meal' } }); lv.addProp('barrel', left, X(z1), { solid: 0.5 }); lv.addProp('sack', right, X(z0 + 1), {}); }
+    else if (id === 'workshop') { lv.addProp('forge', cx - 1.2, top - 0.1, { solid: 0.9, light: 11, lv: 0.8, inter: { kind: 'forge', label: 'Use Forge' } }); lv.addProp('anvil', cx + 1.6, X(z0 + 1), { solid: 0.6, inter: { kind: 'forge', label: 'Use Anvil' } }); lv.addProp('rack', right + 0.2, X(z1), {}); }
+    else if (id === 'laboratory') { lv.addProp('cauldron', cx, top, { solid: 0.6, light: 7, lv: 0.5, inter: { kind: 'alchemy', label: 'Use Alchemy Bench' } }); lv.addProp('shelf', left - 0.2, X(z0 + 1), { solid: 0.4 }); lv.addProp('crystal', right, X(z1), { light: 6, lv: 0.4 }); }
+    else if (id === 'study') { lv.addProp('shelf', left - 0.2, X(z0), { solid: 0.4 }); lv.addProp('shelf', right + 0.2, X(z0), { solid: 0.4 }); lv.addProp('table', cx, X(z0 + 1), { solid: 0.6, inter: { kind: 'study', label: 'Study your books' } }); lv.addProp('candle', cx + 1.2, X(z0 + 1) + 0.4, { light: 8, lv: 0.5 }); }
+  });
+  H.furn.forEach((f, idx) => {
+    const F = FURNITURE[f.t]; if (!F) return; const x = lv.org.x + f.x, z = lv.org.z + f.z;
+    const kind = f.t === 'bed' ? 'bed' : 'furn';
+    lv.addProp(f.t, x, z, { solid: F[2] ? Math.min(F[2], 0.55) : 0, light: F[3], lv: 0.55, y: f.t === 'banner' ? 0.9 : 0, inter: { kind, idx, placed: true, label: f.t === 'bed' ? 'Sleep' : f.t === 'chest' ? 'Open ' + F[0] : F[0] } });
+  });
+  const ex = 4;
+  lv.spawn = { x: X(ex), z: X(mz1), yaw: 0 };
+  lv.inter.push({ kind: 'exit', x: X(ex), y: 1.2, z: mz1 * T + 2.4, label: 'Leave' });
+  lv.exitDoor = { x: X(ex), z: (mz1 + 1) * T - 0.04 };
+  lv.bakeLight(0.55);
+  lv.build({ floor: ['floorwood', 'floorstone', 'carpet', 'dirt'], wall: H.wall || 'plasterin', ceil: 'ceil' });
+  const db = new Bucket(), d = lv.exitDoor; db.quad([d.x - 0.7, 0, d.z], [d.x + 0.7, 0, d.z], [d.x + 0.7, 2.3, d.z], [d.x - 0.7, 2.3, d.z], 1, 1, 1); lv.group.add(db.mesh(M.in.door));
+  return lv;
+}
+
 // ---------- Dungeons ----------
 export function dungeonFloors(L) { const D = DUNGEONS[L.type], r = new RNG(L.seed ^ 0xf100); return r.int(D.floors[0], D.floors[1]); }
 
