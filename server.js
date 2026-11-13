@@ -2,6 +2,7 @@
 // If the port is busy (for example an old server is still running), it uses the next free port.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { writeFileSync, unlinkSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,4 +28,17 @@ const start = (port, tries) => {
   });
   server.listen(port, () => console.log(`Aerhelgard is running at http://localhost:${port}`));
 };
+// Remember our own process, so the next `npm start` stops a server left running by an earlier one.
+const pidFile = join(root, '.server.pid');
+const stopPrevious = async () => {
+  try {
+    const old = +(await readFile(pidFile, 'utf8'));
+    if (old && old !== process.pid) { try { process.kill(old); console.log('Stopped the server left running from an earlier start (pid ' + old + ').'); await new Promise((r) => setTimeout(r, 700)); } catch { /* already gone */ } }
+  } catch { /* no earlier server */ }
+};
+const cleanup = () => { try { unlinkSync(pidFile); } catch { /* nothing to remove */ } };
+await stopPrevious();
+writeFileSync(pidFile, String(process.pid));
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) process.on(sig, () => { cleanup(); process.exit(0); });
+process.on('exit', cleanup);
 start(+process.env.PORT || 8080, 20);
